@@ -1,0 +1,113 @@
+---
+title: IfStatementParser
+description: Conditional logic parser with comparison operators for dynamic responses
+---
+
+# IfStatementParser
+
+The if tag returns a message based on the passed expression to the parameter. An expression is represented by two values compared with an operator. The payload is a required message that must be split by pipe (`|`). If the expression evaluates true, then the message before the pipe (`|`) is returned, else the message after is returned.
+
+## Usage
+
+```typescript
+import { Interpreter, IfStatementParser } from 'tagscript';
+const ts = new Interpreter(new IfStatementParser());
+```
+
+## Syntax
+
+```yaml
+{if(expression):true_message|false_message}
+```
+
+<ParamField path="expression" type="string" required>
+  An expression using comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`) to compare two values
+</ParamField>
+
+<ParamField path="true_message" type="string" required>
+  Message returned if the expression evaluates to true
+</ParamField>
+
+<ParamField path="false_message" type="string" required>
+  Message returned if the expression evaluates to false
+</ParamField>
+
+## Operators
+
+| Operator | Check | Example | Description |
+|----------|-------|---------|-------------|
+| == | equality | `a==a` | value 1 is equal to value 2 |
+| != | inequality | `a!=b` | value 1 is not equal to value 2 |
+| > | greater than | `5>3` | value 1 is greater than value 2 |
+| &lt; | less than | `4<8` | value 1 is less than value 2 |
+| >= | greater than or equality | `10>=10` | value 1 is greater than or equal to value 2 |
+| &lt;= | less than or equality | `5<=6` | value 1 is less than or equal to value 2 |
+
+## Examples
+
+### Number Guessing
+
+```yaml
+{if({args}==63):You guessed it! The number I was thinking of was 63!|Too {if({args}<63):low|high}, try again.}
+# if args is 63
+You guessed it! The number I was thinking of was 63!
+# if args is 73
+Too high, try again.
+# if args is 14
+Too low, try again.
+```
+
+### Age Check
+
+```yaml
+{if({age}>=18):You are an adult.|You are a minor.}
+# if age is 18 or more
+You are an adult.
+# if age is less than 18
+You are a minor.
+```
+
+### String Comparison
+
+```yaml
+{if({user.name}==Admin):Welcome back, Admin!|Hello, {user.name}!}
+# if user.name is "Admin"
+Welcome back, Admin!
+# otherwise
+Hello, John!
+```
+
+### Empty Check
+
+```yaml
+{if({args}==):Please provide an argument.|You provided: {args}}
+# if args is empty
+Please provide an argument.
+# if args has content
+You provided: test
+```
+
+### Nested Conditions
+
+```yaml
+{if({score}>90):Grade: A|{if({score}>80):Grade: B|{if({score}>70):Grade: C|Grade: F}}}
+# Creates a grading system with multiple tiers
+```
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns the message before the `|` if the expression is true, or the message after the `|` if false.
+</ResponseField>
+
+## Type Comparison
+
+The parser performs string and numeric comparisons:
+
+- **Numeric**: If both values are numbers, numeric comparison is used
+- **String**: Otherwise, string comparison is used
+- **Empty strings**: Can be checked using `{if({var}==):...}`
+
+## Source Reference
+
+See the [IfStatementParser implementation](~/workspace/source/packages/tagscript/src/lib/Parsers/Control.ts:54) for full details.

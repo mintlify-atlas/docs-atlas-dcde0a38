@@ -1,0 +1,204 @@
+---
+title: FormatParser
+description: String formatting parsers for case conversion and text escaping
+---
+
+# FormatParser
+
+Format parsers provide string transformation capabilities including case conversion (uppercase, lowercase, capitalize) and character escaping for TagScript special characters.
+
+## StringFormatParser
+
+This parser formats strings by changing their case or escaping special characters.
+
+### Usage
+
+```typescript
+import { Interpreter, StringFormatParser } from 'tagscript';
+const ts = new Interpreter(new StringFormatParser());
+```
+
+### Syntax
+
+```yaml
+{lower:text}
+{upper:text}
+{capitalize:text}
+{escape:text}
+```
+
+<ParamField path="text" type="string" required>
+  The text to format
+</ParamField>
+
+### Examples
+
+#### Lowercase
+
+```yaml
+{lower:Hello Parbez!}
+# hello parbez!
+```
+
+#### Uppercase
+
+```yaml
+{upper:Hello Parbez!}
+# HELLO PARBEZ!
+```
+
+#### Capitalize
+
+```yaml
+{capitalize:hello parbez!}
+# Hello parbez!
+```
+
+#### Escape Special Characters
+
+```yaml
+{escape:Hello| Parbez!}
+# Hello\| Parbez!
+```
+
+### Aliases
+
+- `lower` - Convert to lowercase
+- `upper` - Convert to uppercase
+- `capitalize` - Capitalize first letter, lowercase rest
+- `escape` - Escape TagScript special characters
+
+## OrdinalFormatParser
+
+This parser converts numbers to their ordinal form (1st, 2nd, 3rd, etc.).
+
+### Usage
+
+```typescript
+import { Interpreter, OrdinalFormatParser } from 'tagscript';
+const ts = new Interpreter(new OrdinalFormatParser());
+```
+
+### Syntax
+
+```yaml
+{ordinal:number}
+{ord:number}
+```
+
+<ParamField path="number" type="number" required>
+  The number to convert to ordinal format
+</ParamField>
+
+### Examples
+
+```yaml
+{ordinal:1}
+# 1st
+
+{ordinal:2}
+# 2nd
+
+{ordinal:3}
+# 3rd
+
+{ordinal:4}
+# 4th
+
+{ordinal:21}
+# 21st
+
+{ordinal:42}
+# 42nd
+```
+
+### Placement Example
+
+```yaml
+You finished in {ord:{position}} place!
+# You finished in 1st place!
+# You finished in 3rd place!
+```
+
+### Aliases
+
+- `ordinal`
+- `ord`
+
+## Return Values
+
+<ResponseField name="lower" type="string">
+  Returns the text converted to all lowercase letters
+</ResponseField>
+
+<ResponseField name="upper" type="string">
+  Returns the text converted to all uppercase letters
+</ResponseField>
+
+<ResponseField name="capitalize" type="string">
+  Returns the text with the first character uppercase and remaining characters lowercase
+</ResponseField>
+
+<ResponseField name="escape" type="string">
+  Returns the text with TagScript special characters escaped
+</ResponseField>
+
+<ResponseField name="ordinal" type="string">
+  Returns the number with the appropriate ordinal suffix (st, nd, rd, th)
+</ResponseField>
+
+## Implementation Details
+
+### StringFormatParser
+
+```typescript
+switch (declaration) {
+  case 'lower':
+    return payload!.toLowerCase();
+  case 'upper':
+    return payload!.toUpperCase();
+  case 'capitalize':
+    return payload!.charAt(0).toUpperCase() + payload!.slice(1).toLowerCase();
+  case 'escape':
+    return escapeContent(payload!);
+}
+```
+
+### OrdinalFormatParser
+
+```typescript
+if (Number.isNaN(Number(payload))) return payload;
+const lastDigit = payload!.slice(-1);
+const suffix = lastDigit === '1' ? 'st' 
+             : lastDigit === '2' ? 'nd' 
+             : lastDigit === '3' ? 'rd' 
+             : 'th';
+return `${payload}${suffix}`;
+```
+
+## Use Cases
+
+### Text Formatting
+- Normalize user input to consistent case
+- Create title-case text
+- Format display names
+- Prepare text for comparison
+
+### Escaping
+- Prevent TagScript interpretation of special characters
+- Display literal pipe characters in messages
+- Show example TagScript code without execution
+
+### Ordinals
+- Display rankings and leaderboards
+- Show dates (1st, 2nd, 3rd of the month)
+- Contest placements
+- Achievement levels
+
+## Notes
+
+- **lower**: Converts all characters to lowercase using `String.toLowerCase()`
+- **upper**: Converts all characters to uppercase using `String.toUpperCase()`
+- **capitalize**: Only capitalizes the first character, rest become lowercase
+- **escape**: Escapes TagScript special characters like `|`, `{`, `}`
+- **ordinal**: Determines suffix based on the last digit (11, 12, 13 are special cases handled by checking last digit only)

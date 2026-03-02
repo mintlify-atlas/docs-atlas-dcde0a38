@@ -1,0 +1,121 @@
+---
+title: RandomParser
+description: Parser that picks random items from lists for dynamic content selection
+---
+
+# RandomParser
+
+The random tag picks a random item from a list of strings, split by either `~` or `,`. This parser is useful for selecting random messages, responses, or values from a predefined list.
+
+## Usage
+
+```typescript
+import { Interpreter, RandomParser } from 'tagscript';
+const ts = new Interpreter(new RandomParser());
+```
+
+## Syntax
+
+```yaml
+{random:item1,item2,item3}
+{random:item1~item2~item3}
+{rand:item1,item2,item3}
+```
+
+<ParamField path="items" type="string" required>
+  A list of items separated by either `,` or `~`. One item will be randomly selected.
+</ParamField>
+
+## Examples
+
+### Basic Random Selection
+
+```yaml
+{random:foo,bar,baz}
+# Randomly outputs one of:
+# foo
+# bar
+# baz
+```
+
+### Random Greetings
+
+```yaml
+{random:Hello,Hi,Hey} there!
+# Hello there!
+# Hi there!
+# Hey there!
+```
+
+### Using Tilde Separator
+
+```yaml
+{random:apple~banana~cherry~date}
+# Randomly outputs one of:
+# apple
+# banana
+# cherry
+# date
+```
+
+### Random Colors
+
+```yaml
+Your random color is {random:red,blue,green,yellow,purple}!
+# Your random color is blue!
+# Your random color is yellow!
+```
+
+### Random Responses
+
+```yaml
+{random:That's interesting!,Tell me more.,I see.,Fascinating!}
+# Creates varied bot responses
+```
+
+### Whitespace Handling
+
+```yaml
+{random: option 1 , option 2 , option 3 }
+# Spaces around items are preserved
+#  option 1 
+#  option 2 
+#  option 3 
+```
+
+## Aliases
+
+- `random`
+- `rand`
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns one randomly selected item from the provided list. Each item has equal probability of being selected.
+</ResponseField>
+
+## Implementation Details
+
+The parser splits the payload by either `~` or `,` and uses `Math.random()` to select an index:
+
+```typescript
+const spl = split(ctx.tag.payload!, true);
+const index = Math.floor(Math.random() * spl.length);
+return spl[index];
+```
+
+## Use Cases
+
+- **Random Greetings**: Vary welcome messages
+- **Random Tips**: Show different tips on each load
+- **Random Quotes**: Display inspirational quotes
+- **Random Rewards**: Select random items or bonuses
+- **Variety in Responses**: Make bot responses less predictable
+- **A/B Testing**: Randomly show different content variations
+
+## Notes
+
+- Both `,` and `~` can be used as separators (but not mixed in the same tag)
+- Empty items are valid (e.g., `{random:a,,c}` has three items, one empty)
+- Whitespace around separators is included in the item values
+- Each item has an equal probability of being selected

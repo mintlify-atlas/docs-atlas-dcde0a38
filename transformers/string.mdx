@@ -1,0 +1,204 @@
+---
+title: StringTransformer
+description: Transform and manipulate strings with indexing, slicing, and custom separators
+---
+
+# StringTransformer
+
+The `StringTransformer` transforms strings based on tag parameters, providing powerful string indexing, slicing, and splitting capabilities.
+
+## Overview
+
+StringTransformer enables you to:
+- Return the full string when no parameters are given
+- Split strings and extract specific indices (1-based)
+- Get ranges of elements using `+` notation
+- Use custom separators for splitting
+- Optionally escape content for safe output
+
+## Constructor
+
+<ParamField path="str" type="string" required>
+  The string value to transform
+</ParamField>
+
+<ParamField path="escape" type="boolean" default="false">
+  If true, the returned string will be escaped using `escapeContent`. This is useful for preventing tag injection in user-provided content.
+</ParamField>
+
+```typescript
+import { StringTransformer } from 'tagscript';
+
+const transformer = new StringTransformer('Hello World');
+const escaped = new StringTransformer('<user input>', true);
+```
+
+## Transform Method
+
+The `transform` method is called automatically by the interpreter when a variable using this transformer is encountered.
+
+```typescript
+transform(tag: Lexer): string
+```
+
+- **tag.parameter** - Index or range specification (e.g., `"1"`, `"2+"`, `"+3"`)
+- **tag.payload** - Custom separator for splitting (defaults to space)
+- **Returns** - The transformed string value
+
+## Usage Examples
+
+<Note>
+StringTransformer requires `StrictVarsParser` to function properly.
+</Note>
+
+### Basic Usage
+
+Return the full string without any transformation:
+
+```typescript
+import { Interpreter, StringTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+await ts.run('{args}', { 
+  args: new StringTransformer('Hi, How are you?') 
+});
+// Output: Hi, How are you?
+```
+
+### Index-Based Access
+
+Extract specific words using 1-based indexing:
+
+```typescript
+await ts.run('{args(1)}', { 
+  args: new StringTransformer('Hi, How are you?') 
+});
+// Output: Hi,
+
+await ts.run('{args(2)}', { 
+  args: new StringTransformer('Hi, How are you?') 
+});
+// Output: How
+
+await ts.run('{args(3)}', { 
+  args: new StringTransformer('Hi, How are you?') 
+});
+// Output: are
+```
+
+### Range Selection with `+`
+
+Use `+` after the index to get everything from that index onwards:
+
+```typescript
+await ts.run('{args(2+)}', { 
+  args: new StringTransformer('Hi, How are you?') 
+});
+// Output: How are you?
+
+await ts.run('{args(3+)}', { 
+  args: new StringTransformer('Hi, How are you?') 
+});
+// Output: are you?
+```
+
+Use `+` before the index to get everything up to and including that index:
+
+```typescript
+await ts.run('{args(+2)}', { 
+  args: new StringTransformer('Hi Vox, How are you?') 
+});
+// Output: Hi Vox,
+
+await ts.run('{args(+3)}', { 
+  args: new StringTransformer('Hi Vox, How are you?') 
+});
+// Output: Hi Vox, How
+```
+
+### Custom Separators
+
+Use the payload syntax to specify a custom separator:
+
+```typescript
+await ts.run('{data(1):|}', { 
+  data: new StringTransformer('apple|banana|cherry') 
+});
+// Output: apple
+
+await ts.run('{data(2):|}', { 
+  data: new StringTransformer('apple|banana|cherry') 
+});
+// Output: banana
+
+await ts.run('{data(2+):|}', { 
+  data: new StringTransformer('apple|banana|cherry') 
+});
+// Output: banana|cherry
+```
+
+### Escaped Content
+
+Use the escape option to prevent tag injection:
+
+```typescript
+const userInput = new StringTransformer('{admin}', true);
+
+await ts.run('User said: {input}', { input: userInput });
+// Output: User said: \{admin\} (escaped)
+```
+
+## Tag Syntax for End Users
+
+When using StringTransformer variables in templates:
+
+```yaml
+# Return full string
+{variable}
+
+# Get element at index (1-based)
+{variable(index)}
+
+# Get elements from index onwards
+{variable(index+)}
+
+# Get elements up to and including index
+{variable(+index)}
+
+# Use custom separator
+{variable(index):separator}
+```
+
+## Behavior Details
+
+### Indexing
+- **1-based indexing** - First element is at index 1, not 0
+- **Out of bounds** - Returns the original string if index is invalid
+- **Default separator** - Space regex (`/ +/`) is used when no payload is provided
+- **Split and join** - When using ranges, elements are joined using the payload (or space if not specified)
+
+### Examples with Different Inputs
+
+```typescript
+const args = new StringTransformer('apple banana cherry');
+
+await ts.run('{args(1)}', { args });  // "apple"
+await ts.run('{args(2)}', { args });  // "banana"
+await ts.run('{args(3)}', { args });  // "cherry"
+await ts.run('{args(4)}', { args });  // "apple banana cherry" (out of bounds)
+await ts.run('{args(2+)}', { args }); // "banana cherry"
+await ts.run('{args(+2)}', { args }); // "apple banana"
+```
+
+## Implementation Reference
+
+The StringTransformer is implemented at:
+`~/workspace/source/packages/tagscript/src/lib/Transformer/String.ts:41`
+
+## Related
+
+- [IntegerTransformer](/transformers/integer) - For numeric transformations
+- [SafeObjectTransformer](/transformers/object) - For object property access
+- [FunctionTransformer](/transformers/function) - For custom transformation logic
+- [StrictVarsParser](/parsers/strict-vars) - Required parser for transformers

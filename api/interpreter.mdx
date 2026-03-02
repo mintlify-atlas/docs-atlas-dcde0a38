@@ -1,0 +1,247 @@
+---
+title: Interpreter
+description: The main TagScript interpreter class for processing TagScript strings
+---
+
+The `Interpreter` class is the core of TagScript. It processes TagScript strings by parsing tags and executing registered parsers to transform the input into a final output.
+
+## Constructor
+
+<ParamField path="...parsers" type="IParser[]">
+  Variable number of parser instances to register with the interpreter. Parsers are executed in the order they are provided.
+</ParamField>
+
+### Example
+
+```ts
+import { Interpreter, StrictVarsParser, IfStatementParser } from 'tagscript';
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new IfStatementParser()
+);
+```
+
+## Methods
+
+### run()
+
+Processes a TagScript string and returns a Response object containing the parsed result.
+
+```ts
+async run(
+  message: string,
+  seedVariables?: { [key: string]: ITransformer },
+  charLimit?: number | null,
+  tagLimit?: number,
+  parenType?: ParenType,
+  keyValues?: IKeyValues
+): Promise<Response>
+```
+
+<ParamField path="message" type="string" required>
+  The TagScript string to be processed.
+</ParamField>
+
+<ParamField path="seedVariables" type="{ [key: string]: ITransformer }" default="{}">
+  An object containing transformers to provide context variables for processing. Keys are variable names, values are transformer instances.
+</ParamField>
+
+<ParamField path="charLimit" type="number | null" default="null">
+  The maximum number of characters to process. If exceeded, throws an error. Set to `null` for no limit.
+</ParamField>
+
+<ParamField path="tagLimit" type="number" default="2000">
+  The maximum number of tags to process.
+</ParamField>
+
+<ParamField path="parenType" type="ParenType" default="ParenType.Both">
+  Determines how parameters should be specified:
+  - `ParenType.Both` - Accepts both `.parameter` and `(parameter)` syntax
+  - `ParenType.Dot` - Only accepts `.parameter` syntax
+  - `ParenType.Parenthesis` - Only accepts `(parameter)` syntax
+</ParamField>
+
+<ParamField path="keyValues" type="IKeyValues" default="{}">
+  Additional key-value pairs that may be used by parsers during processing.
+</ParamField>
+
+<ResponseField name="response" type="Promise<Response>">
+  A Promise that resolves to a Response object containing the processed body, variables, actions, and raw input.
+</ResponseField>
+
+#### Example
+
+```ts
+import { Interpreter, StringTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Hello {user}!',
+  { user: new StringTransformer('Alice') }
+);
+
+console.log(result.body); // "Hello Alice!"
+```
+
+#### Error Handling
+
+```ts
+try {
+  const result = await ts.run(
+    'Very long tag output here',
+    {},
+    10 // Character limit
+  );
+} catch (error) {
+  // Error: The TS interpreter had its workload exceeded.
+  console.error(error.message);
+}
+```
+
+### addParsers()
+
+Adds additional parsers to the interpreter without removing existing ones.
+
+```ts
+addParsers(...parsers: IParser[]): void
+```
+
+<ParamField path="...parsers" type="IParser[]" required>
+  Variable number of parser instances to add to the interpreter.
+</ParamField>
+
+#### Example
+
+```ts
+import { Interpreter, StrictVarsParser, DefineParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+// Add more parsers later
+ts.addParsers(new DefineParser());
+```
+
+### setParsers()
+
+Replaces all existing parsers with new ones.
+
+```ts
+setParsers(...parsers: IParser[]): void
+```
+
+<ParamField path="...parsers" type="IParser[]" required>
+  Variable number of parser instances to set as the interpreter's parsers, replacing all existing parsers.
+</ParamField>
+
+#### Example
+
+```ts
+import { Interpreter, StrictVarsParser, DefineParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+// Replace all parsers
+ts.setParsers(new DefineParser());
+```
+
+## Properties
+
+<ResponseField name="parsers" type="IParser[]" private>
+  Protected array containing all registered parsers. Parsers are executed in order during tag processing.
+</ResponseField>
+
+## Usage Examples
+
+### Basic Usage
+
+```ts
+import { Interpreter, StrictVarsParser, StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const response = await ts.run(
+  'Welcome {user}, you have {points} points!',
+  {
+    user: new StringTransformer('Bob'),
+    points: new StringTransformer('150')
+  }
+);
+
+console.log(response.body); // "Welcome Bob, you have 150 points!"
+```
+
+### With Multiple Parsers
+
+```ts
+import {
+  Interpreter,
+  StrictVarsParser,
+  IfStatementParser,
+  StringTransformer
+} from 'tagscript';
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new IfStatementParser()
+);
+
+const response = await ts.run(
+  '{if({score}>50):Pass|Fail}',
+  { score: new StringTransformer('75') }
+);
+
+console.log(response.body); // "Pass"
+```
+
+### Character Limit
+
+```ts
+import { Interpreter, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+try {
+  await ts.run(
+    'Some very long output',
+    {},
+    50 // Max 50 characters
+  );
+} catch (error) {
+  console.error('Output too long!');
+}
+```
+
+### ParenType Configuration
+
+```ts
+import { Interpreter, ParenType, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+// Only accept dot notation
+await ts.run(
+  '{user.name}',
+  { user: new ObjectTransformer({ name: 'Alice' }) },
+  null,
+  2000,
+  ParenType.Dot
+);
+
+// Only accept parenthesis notation
+await ts.run(
+  '{user(name)}',
+  { user: new ObjectTransformer({ name: 'Alice' }) },
+  null,
+  2000,
+  ParenType.Parenthesis
+);
+```
+
+## See Also
+
+- [Context](/api/context) - Context object passed to parsers
+- [Response](/api/response) - Response object returned by the interpreter
+- [IParser](/api/interfaces/parser) - Parser interface for creating custom parsers
+- [ITransformer](/api/interfaces/transformer) - Transformer interface for creating custom transformers

@@ -1,0 +1,342 @@
+---
+title: DefineParser
+description: Parser for defining and assigning custom variables
+---
+
+# DefineParser
+
+Variables are useful for choosing a value and referencing it later in a tag. The define parser allows you to create custom variables that can be referenced using brackets like any other tag. This is essential for storing values, reducing repetition, and creating dynamic templates.
+
+## Usage
+
+```typescript
+import { Interpreter, DefineParser, LooseVarsParser } from 'tagscript';
+const ts = new Interpreter(
+  new DefineParser(),
+  new LooseVarsParser()  // or StrictVarsParser
+);
+```
+
+## Syntax
+
+```yaml
+{=(variable_name):value}
+{assign(variable_name):value}
+{let(variable_name):value}
+{var(variable_name):value}
+```
+
+<ParamField path="variable_name" type="string" required>
+  The name of the variable to create. Must be unique within the scope.
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  The value to assign to the variable. Can be static text or the result of other tags.
+</ParamField>
+
+## Examples
+
+### Basic Variable Definition
+
+```yaml
+{=(name):John}
+Hello, {name}!
+# Hello, John!
+```
+
+### Prefix Example
+
+```yaml
+{=(prefix):!}
+The prefix here is `{prefix}`.
+# The prefix here is `!`.
+```
+
+### Multiple Variables
+
+```yaml
+{=(username):Alice}
+{=(points):1500}
+{=(rank):Gold}
+Player: {username}
+Points: {points}
+Rank: {rank}
+# Player: Alice
+# Points: 1500
+# Rank: Gold
+```
+
+### Dynamic Values
+
+```yaml
+{=(roll):{range:1-20}}
+You rolled a {roll}!
+{if({roll}>15):Critical success!|Normal roll}
+# You rolled a 18!
+# Critical success!
+```
+
+### Storing Calculations
+
+```yaml
+{=(base_damage):{range:10-20}}
+{=(critical):{5050:2}}
+{=(total):{if({critical}==2):{base_damage}*2|{base_damage}}}
+Damage: {total}
+```
+
+### Nested Tag Results
+
+```yaml
+{=(greeting):{random:Hello,Hi,Hey}}
+{=(name):{user.name}}
+{greeting}, {name}!
+# Hi, Alice!
+# Hello, Alice!
+```
+
+## Aliases
+
+- `=` (recommended, shortest)
+- `assign`
+- `let`
+- `var`
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns an empty string. The variable is stored internally and can be accessed using variable parsers.
+</ResponseField>
+
+## Implementation Details
+
+```typescript
+public parse(ctx: Context) {
+  ctx.response.variables[ctx.tag.parameter!] = new StringTransformer(ctx.tag.payload!);
+  return '';
+}
+```
+
+The parser:
+1. Takes the parameter as the variable name
+2. Takes the payload as the variable value
+3. Stores it in `ctx.response.variables` using `StringTransformer`
+4. Returns empty string (doesn't output anything)
+
+## Use Cases
+
+### Reduce Repetition
+
+```yaml
+{=(server_name):Awesome Gaming Server}
+Welcome to {server_name}!
+Enjoy your stay at {server_name}.
+Rules: {server_name} has strict policies.
+```
+
+### Store API Results
+
+```yaml
+{=(weather):{fetch:https://api.example.com/weather}}
+Temperature: {weather.temp}°C
+Condition: {weather.condition}
+```
+
+### Complex Calculations
+
+```yaml
+{=(level):{user.xp}/1000}
+{=(next_level):{level}+1}
+Current level: {level}
+Next level: {next_level}
+```
+
+### Configuration
+
+```yaml
+{=(primary_color):#FF5733}
+{=(secondary_color):#33FF57}
+{=(theme):dark}
+
+Theme: {theme}
+Primary: {primary_color}
+Secondary: {secondary_color}
+```
+
+## Working with Variable Parsers
+
+DefineParser must be used with a variable parser to access the defined variables:
+
+### With LooseVarsParser
+
+```typescript
+const ts = new Interpreter(
+  new DefineParser(),
+  new LooseVarsParser()
+);
+```
+
+```yaml
+{=(test):value}
+{test}              # "value"
+{undefined}         # null (graceful)
+```
+
+### With StrictVarsParser
+
+```typescript
+const ts = new Interpreter(
+  new DefineParser(),
+  new StrictVarsParser()
+);
+```
+
+```yaml
+{=(test):value}
+{test}              # "value"
+{undefined}         # "{undefined}" (literal, shows error)
+```
+
+## Variable Scope
+
+Variables are scoped to the current parsing context:
+
+```yaml
+{=(global):Available everywhere}
+
+Inside if: {if(true):{=(inside):local value}{inside}|}
+Outside if: {inside}  # May not be available
+
+{global}  # Always available
+```
+
+## Best Practices
+
+### 1. Use Short Alias
+
+Prefer `=` for brevity:
+
+```yaml
+{=(var):value}  # ✓ Recommended
+{assign(var):value}  # ✗ Verbose
+```
+
+### 2. Descriptive Names
+
+Use clear, descriptive variable names:
+
+```yaml
+{=(user_level):5}        # ✓ Clear
+{=(ul):5}                # ✗ Unclear
+```
+
+### 3. Define Before Use
+
+Always define variables before referencing them:
+
+```yaml
+{=(name):Alice}
+Hello {name}!  # ✓ Correct order
+```
+
+### 4. Group Definitions
+
+Define related variables together:
+
+```yaml
+{=(first_name):John}
+{=(last_name):Doe}
+{=(email):john@example.com}
+
+User: {first_name} {last_name}
+Contact: {email}
+```
+
+### 5. Store Complex Expressions
+
+Use variables to simplify complex expressions:
+
+```yaml
+{=(is_admin):{if({user.role}==admin):true|false}}
+{=(is_verified):{if({user.verified}==true):true|false}}
+
+{if({is_admin}==true):Admin panel|{if({is_verified}==true):User panel|Please verify}}
+```
+
+## Advanced Examples
+
+### Conditional Variables
+
+```yaml
+{=(greeting):{if({time}<12):Good morning|{if({time}<18):Good afternoon|Good evening}}}
+{greeting}, {user.name}!
+```
+
+### Chained Variables
+
+```yaml
+{=(base):{range:10-20}}
+{=(bonus):{range:1-5}}
+{=(total):{base}+{bonus}}
+Base: {base}, Bonus: {bonus}, Total: {total}
+```
+
+### Default Values
+
+```yaml
+{=(username):{if({user.name}!=):{user.name}|Guest}}
+Welcome, {username}!
+```
+
+### Template Composition
+
+```yaml
+{=(header):=== {title} ===}
+{=(footer):--- End ---}
+
+{header}
+Content goes here
+{footer}
+```
+
+## Notes
+
+- Returns **empty string** (doesn't produce output)
+- Variable names are **case-sensitive**
+- Values can contain **any text**, including other tags
+- Variables are stored in `ctx.response.variables`
+- Requires a variable parser ([LooseVarsParser](/parsers/loose-vars) or [StrictVarsParser](/parsers/strict-vars)) to access values
+- Variables persist throughout the parsing session
+- Can store results of other parsers
+- Overwrites existing variables with the same name
+
+## Common Patterns
+
+### Constants at Top
+
+```yaml
+{=(MAX_LEVEL):100}
+{=(MIN_LEVEL):1}
+{=(BONUS_MULTIPLIER):1.5}
+
+Level cap: {MAX_LEVEL}
+```
+
+### Reusable Components
+
+```yaml
+{=(button):[ {text} ]}
+{=(text):Click Here}{button}
+{=(text):Submit}{button}
+# [ Click Here ]
+# [ Submit ]
+```
+
+### State Management
+
+```yaml
+{=(state):idle}
+{if({action}==start):{=(state):running}|}
+{if({action}==stop):{=(state):stopped}|}
+Current state: {state}
+```

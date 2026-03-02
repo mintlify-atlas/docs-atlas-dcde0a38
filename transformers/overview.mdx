@@ -1,0 +1,163 @@
+---
+title: Transformers Overview
+description: Learn how to use transformers to dynamically transform variable values in TagScript
+---
+
+# Transformers Overview
+
+Transformers are objects that implement the `ITransformer` interface and are used to dynamically transform variable values based on tag parameters at runtime. They enable powerful variable manipulation without requiring custom parsers.
+
+## What are Transformers?
+
+Transformers allow you to pass dynamic values into your TagScript templates that can be manipulated using tag syntax. Instead of passing static string values, you pass transformer objects that respond to parameters and payloads in the tag.
+
+```typescript
+import { Interpreter, StringTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+// Pass a transformer instead of a plain string
+await ts.run('Hi {user}', { 
+  user: new StringTransformer('Parbez') 
+});
+// Output: Hi Parbez
+```
+
+## When to Use Transformers
+
+Use transformers when you need to:
+
+- **Split and index strings** - Extract specific words or ranges from text
+- **Manipulate numbers** - Increment or decrement integer values
+- **Access object properties** - Safely access nested object data
+- **Custom transformations** - Implement your own transformation logic
+
+## Available Transformers
+
+TagScript provides four built-in transformers:
+
+### StringTransformer
+
+Transforms strings with powerful indexing and slicing capabilities.
+
+```typescript
+import { StringTransformer } from 'tagscript';
+
+await ts.run('{args(1)}', { 
+  args: new StringTransformer('Hello World') 
+});
+// Output: Hello
+```
+
+[Learn more about StringTransformer →](/transformers/string)
+
+### IntegerTransformer
+
+Manipulates integer values with increment and decrement operations.
+
+```typescript
+import { IntegerTransformer } from 'tagscript';
+
+await ts.run('{count(++)}', { 
+  count: new IntegerTransformer('5') 
+});
+// Output: 6
+```
+
+[Learn more about IntegerTransformer →](/transformers/integer)
+
+### SafeObjectTransformer
+
+Safely accesses object properties, including nested properties.
+
+```typescript
+import { SafeObjectTransformer } from 'tagscript';
+
+await ts.run('{user(name)}', { 
+  user: new SafeObjectTransformer({ name: 'Alice', age: 30 }) 
+});
+// Output: Alice
+```
+
+[Learn more about SafeObjectTransformer →](/transformers/object)
+
+### FunctionTransformer
+
+Executes custom transformation functions for complete control.
+
+```typescript
+import { FunctionTransformer } from 'tagscript';
+
+await ts.run('{custom(upper)}', { 
+  custom: new FunctionTransformer((tag) => {
+    return tag.parameter === 'upper' ? 'HELLO' : 'hello';
+  })
+});
+// Output: HELLO
+```
+
+[Learn more about FunctionTransformer →](/transformers/function)
+
+## Parser Requirement
+
+<Note>
+All built-in transformers require the `StrictVarsParser` to function properly. Make sure to include it when creating your interpreter:
+
+```typescript
+import { Interpreter, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+```
+</Note>
+
+## Creating Custom Transformers
+
+You can create your own transformers by implementing the `ITransformer` interface:
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+export class CustomTransformer implements ITransformer {
+  private value: string;
+  
+  constructor(value: string) {
+    this.value = value;
+  }
+  
+  transform(tag: Lexer): string | null {
+    // Access tag.parameter for parameters like {var(param)}
+    // Access tag.payload for payloads like {var(param):payload}
+    
+    if (tag.parameter === 'upper') {
+      return this.value.toUpperCase();
+    }
+    
+    return this.value;
+  }
+}
+```
+
+### The Lexer Object
+
+The `transform` method receives a `Lexer` object with information about the tag:
+
+- `tag.parameter` - The parameter value from `{var(parameter)}`
+- `tag.payload` - The payload value from `{var:payload}` or `{var(param):payload}`
+- Returns `string | null` - The transformed value or null to skip replacement
+
+## Best Practices
+
+1. **Choose the right transformer** - Use built-in transformers when possible instead of creating custom ones
+2. **Handle null cases** - Return `null` when a transformation should not produce output
+3. **Validate input** - Check parameter values before using them
+4. **Keep transformers pure** - Avoid side effects when possible (except for stateful transformers like IntegerTransformer)
+5. **Document behavior** - Clearly document what parameters your custom transformers accept
+
+## Next Steps
+
+Explore the individual transformer documentation to learn about specific features and usage patterns:
+
+- [StringTransformer](/transformers/string) - String manipulation and indexing
+- [IntegerTransformer](/transformers/integer) - Integer operations
+- [SafeObjectTransformer](/transformers/object) - Object property access
+- [FunctionTransformer](/transformers/function) - Custom transformation logic

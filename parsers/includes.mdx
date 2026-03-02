@@ -1,0 +1,262 @@
+---
+title: IncludesParser
+description: Parser for checking text inclusion and finding character positions
+---
+
+# IncludesParser
+
+This tag serves four different purposes depending on the alias that is used. The `in` and `includes` aliases check if the parameter is anywhere in the payload. `contain` strictly checks if the parameter is in the payload when split by whitespace. `index` finds the location of the parameter in the payload split by whitespace. `lindex` finds the character location of the parameter in the payload.
+
+## Usage
+
+```typescript
+import { Interpreter, IncludesParser } from 'tagscript';
+const ts = new Interpreter(new IncludesParser());
+```
+
+## Syntax
+
+```yaml
+{includes(search):text}
+{in(search):text}
+{contain(search):text}
+{index(search):text}
+{lindex(search):text}
+```
+
+<ParamField path="search" type="string" required>
+  The text to search for in the payload
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text to search within
+</ParamField>
+
+## Aliases & Behavior
+
+### includes / in
+
+Checks if the search text appears anywhere in the payload.
+
+**Returns**: `"true"` or `"false"`
+
+```yaml
+{in(there):Hi there!}
+# true
+
+{includes(hello):Hi there!}
+# false
+```
+
+### contain
+
+Checks if the search text exists as a complete word (whitespace-separated) in the payload.
+
+**Returns**: `"true"` or `"false"`
+
+```yaml
+{contain(there):Hi there!}
+# false ("there!" is not exactly "there")
+
+{contain(there!):Hi there!}
+# true
+
+{contain(Hi):Hi there!}
+# true
+```
+
+### index
+
+Finds the word index (0-based) of the search text in whitespace-split payload.
+
+**Returns**: Index as string, or `"-1"` if not found
+
+```yaml
+{index(there):Hi there!}
+# 1
+
+{index(Hi):Hi there!}
+# 0
+
+{index(missing):Hi there!}
+# -1
+```
+
+### lindex
+
+Finds the character index (0-based) of the search text in the payload.
+
+**Returns**: Character index as string, or `"-1"` if not found
+
+```yaml
+{lindex(t):Hi there!}
+# 3
+
+{lindex(there):Hi there!}
+# 3
+
+{lindex(missing):Hi there!}
+# -1
+```
+
+## Examples
+
+### Checking Text Inclusion
+
+```yaml
+{if({in(admin):{user.roles}}==true):You are an admin!|Regular user}
+# Checks if "admin" appears in user roles
+```
+
+### Word Matching
+
+```yaml
+{if({contain(banned):{user.status}}==true):User is banned|User is active}
+# Checks if "banned" is a complete word in status
+```
+
+### Finding Word Position
+
+```yaml
+{index(error):INFO WARNING ERROR CRITICAL}
+# 2
+
+Log level position: {index({level}):DEBUG INFO WARNING ERROR}
+```
+
+### Finding Character Position
+
+```yaml
+{lindex(@):user@example.com}
+# 4
+
+{if({lindex(@):{email}}>0):Valid email format|Invalid email}
+```
+
+### Substring Check
+
+```yaml
+{in(http):https://example.com}
+# true
+
+{in(ftp):https://example.com}
+# false
+```
+
+## Return Values
+
+<ResponseField name="includes/in" type="string">
+  Returns `"true"` if search text is found anywhere in payload, otherwise `"false"`
+</ResponseField>
+
+<ResponseField name="contain" type="string">
+  Returns `"true"` if search text exists as a complete word in whitespace-split payload, otherwise `"false"`
+</ResponseField>
+
+<ResponseField name="index" type="string">
+  Returns word index (0-based) as string, or `"-1"` if not found
+</ResponseField>
+
+<ResponseField name="lindex" type="string">
+  Returns character index (0-based) as string, or `"-1"` if not found
+</ResponseField>
+
+## Implementation Details
+
+```typescript
+const dec = ctx.tag.declaration!.toLowerCase();
+
+if (['includes', 'in'].includes(dec)) 
+  return `${ctx.tag.payload!.includes(ctx.tag.parameter!)}`;
+
+if (dec === 'contain') {
+  const index = ctx.tag.payload!.split(/\s+/).includes(ctx.tag.parameter!);
+  return `${index}`;
+}
+
+if (dec === 'index') {
+  const index = ctx.tag.payload!.split(/\s+/).indexOf(ctx.tag.parameter!);
+  return `${index}`;
+}
+
+return `${ctx.tag.payload!.indexOf(ctx.tag.parameter!)}`; // lindex
+```
+
+## Use Cases
+
+### Role Checking
+
+```yaml
+{if({in(moderator):{user.roles}}==true):Moderator commands available|Regular commands}
+```
+
+### Input Validation
+
+```yaml
+{if({lindex(@):{email}}<0):Invalid email address|Valid email}
+```
+
+### Command Parsing
+
+```yaml
+{index(help):help about info status}
+# Returns position of "help" in command list
+```
+
+### Text Analysis
+
+```yaml
+Keyword position: {lindex(important):{document}}
+{if({in(urgent):{message}}==true):Priority: HIGH|Priority: NORMAL}
+```
+
+## Comparison Table
+
+| Alias | Search Type | Example | Input | Result |
+|-------|-------------|---------|-------|--------|
+| `in` | Substring anywhere | `{in(the):Hi there!}` | - | `true` |
+| `includes` | Substring anywhere | `{includes(Hi):Hi there!}` | - | `true` |
+| `contain` | Exact word match | `{contain(there):Hi there!}` | - | `false` |
+| `contain` | Exact word match | `{contain(there!):Hi there!}` | - | `true` |
+| `index` | Word position | `{index(there!):Hi there!}` | - | `1` |
+| `lindex` | Character position | `{lindex(t):Hi there!}` | - | `3` |
+
+## Notes
+
+- All aliases return **strings**, not booleans (e.g., `"true"` not `true`)
+- **contain** splits by whitespace (`/\s+/`), so punctuation matters
+- **index** returns `-1` if word not found (as string `"-1"`)
+- **lindex** returns `-1` if character not found (as string `"-1"`)
+- Case-sensitive searches (use `{lower:...}` for case-insensitive)
+- All return values are strings, use with `{if()}` for conditionals
+
+## Advanced Examples
+
+### Case-Insensitive Search
+
+```yaml
+{in({lower:admin}):{lower:{user.roles}}}
+# Searches for "admin" case-insensitively
+```
+
+### Multiple Checks
+
+```yaml
+{if({in(error):{log}}==true):Error found|
+  {if({in(warning):{log}}==true):Warning found|
+    All clear}}
+```
+
+### Position-Based Logic
+
+```yaml
+{if({lindex(.):{filename}}>0):Has extension|No extension}
+# Checks if filename has a file extension
+```
+
+### Word Count Before Match
+
+```yaml
+Words before "error": {index(error):{log_line}}
+# Returns number of words before "error" appears
+```

@@ -1,0 +1,347 @@
+---
+title: Response
+description: Response object containing the results of TagScript interpretation
+---
+
+The `Response` class represents the complete result of a TagScript interpretation. It contains the processed output, variables, actions set by parsers, and the original input.
+
+## Constructor
+
+```ts
+constructor(
+  variables?: { [key: string]: ITransformer },
+  keyValues?: IKeyValues
+)
+```
+
+<ParamField path="variables" type="{ [key: string]: ITransformer }" default="{}">
+  An object mapping variable names to transformer instances. These variables are accessible during tag processing.
+</ParamField>
+
+<ParamField path="keyValues" type="IKeyValues" default="{}">
+  Additional key-value pairs that can be passed to parsers. This interface can be extended via module augmentation.
+</ParamField>
+
+### Example
+
+```ts
+import { Response, StringTransformer } from 'tagscript';
+
+const response = new Response(
+  { user: new StringTransformer('Alice') },
+  { userId: '12345' }
+);
+```
+
+## Properties
+
+<ResponseField name="body" type="string | null">
+  The cleaned, processed message with all tags interpreted. This is the final output after processing. `null` before `setValues()` is called.
+</ResponseField>
+
+<ResponseField name="raw" type="string">
+  The raw, unprocessed string that was passed to the interpreter.
+</ResponseField>
+
+<ResponseField name="variables" type="{ [key: string]: ITransformer }">
+  An object containing all variables available during processing. Parsers like `StrictVarsParser` and `LooseVarsParser` use this to resolve variable references.
+  
+  Keys are variable names (strings), values are transformer instances that handle the variable's behavior.
+</ResponseField>
+
+<ResponseField name="actions" type="IActions">
+  An object containing actions set by parsers during processing. This can be used to communicate information from parsers back to the calling code.
+  
+  The `IActions` interface can be extended via module augmentation to add custom action types.
+</ResponseField>
+
+<ResponseField name="keyValues" type="IKeyValues">
+  An object containing additional key-value pairs passed to the interpreter. Parsers can access this data during processing.
+  
+  The `IKeyValues` interface is empty by default and should be extended via module augmentation.
+</ResponseField>
+
+## Methods
+
+### setValues()
+
+Sets the final output and raw input values. This is called internally by the interpreter after processing is complete.
+
+```ts
+setValues(output: string, raw: string): Response
+```
+
+<ParamField path="output" type="string" required>
+  The processed output string.
+</ParamField>
+
+<ParamField path="raw" type="string" required>
+  The original raw input string.
+</ParamField>
+
+<ResponseField name="return" type="Response">
+  Returns the Response instance for method chaining.
+</ResponseField>
+
+#### Example
+
+```ts
+import { Response } from 'tagscript';
+
+const response = new Response();
+response.setValues('Processed output', 'Raw {tag} input');
+
+console.log(response.body); // "Processed output"
+console.log(response.raw);  // "Raw {tag} input"
+```
+
+### toJSON()
+
+Serializes the response to a plain JavaScript object.
+
+```ts
+toJSON(): object
+```
+
+<ResponseField name="return" type="object">
+  An object containing:
+  - `body` - The processed output
+  - `raw` - The original input
+  - `actions` - The actions object
+  - `variables` - The variables object
+  - `keyValues` - The key-values object
+</ResponseField>
+
+#### Example
+
+```ts
+import { Response, StringTransformer } from 'tagscript';
+
+const response = new Response({ user: new StringTransformer('Bob') });
+response.setValues('Hello Bob!', 'Hello {user}!');
+
+const json = response.toJSON();
+console.log(json);
+// {
+//   body: 'Hello Bob!',
+//   raw: 'Hello {user}!',
+//   actions: {},
+//   variables: { user: StringTransformer { ... } },
+//   keyValues: {}
+// }
+```
+
+## IActions Interface
+
+The `IActions` interface defines the structure of action data that parsers can set. By default, it includes:
+
+```ts
+interface IActions {
+  deny?: { ids: string[]; message: string | null };
+  require?: { ids: string[]; message: string | null };
+}
+```
+
+<ResponseField name="deny" type="{ ids: string[]; message: string | null }">
+  Optional deny action set by permission parsers (e.g., `DenyParser`). Contains IDs of denied entities and an optional message.
+</ResponseField>
+
+<ResponseField name="require" type="{ ids: string[]; message: string | null }">
+  Optional require action set by permission parsers (e.g., `RequireParser`). Contains IDs of required entities and an optional message.
+</ResponseField>
+
+### Extending IActions
+
+You can add custom actions using TypeScript module augmentation:
+
+```ts
+import 'tagscript';
+
+declare module 'tagscript' {
+  interface IActions {
+    customAction?: string;
+    metadata?: { key: string; value: any };
+  }
+}
+```
+
+## IKeyValues Interface
+
+The `IKeyValues` interface is an empty interface by default that can be extended to pass custom data to parsers:
+
+```ts
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface IKeyValues {}
+```
+
+### Extending IKeyValues
+
+```ts
+import 'tagscript';
+
+declare module 'tagscript' {
+  interface IKeyValues {
+    userId?: string;
+    guildId?: string;
+    timestamp?: number;
+  }
+}
+```
+
+After extending, you can pass typed key-values to the interpreter:
+
+```ts
+import { Interpreter } from 'tagscript';
+
+const ts = new Interpreter();
+
+const response = await ts.run(
+  'Processing...',
+  {},
+  null,
+  2000,
+  ParenType.Both,
+  {
+    userId: '123456789',
+    guildId: '987654321',
+    timestamp: Date.now()
+  }
+);
+```
+
+## Usage Examples
+
+### Basic Usage
+
+```ts
+import { Interpreter, StringTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const response = await ts.run(
+  'Hello {user}, you have {points} points!',
+  {
+    user: new StringTransformer('Alice'),
+    points: new StringTransformer('100')
+  }
+);
+
+console.log(response.body); // "Hello Alice, you have 100 points!"
+console.log(response.raw);  // "Hello {user}, you have {points} points!"
+```
+
+### Accessing Variables
+
+```ts
+import { Interpreter, StringTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const response = await ts.run(
+  '{greeting} {user}!',
+  {
+    greeting: new StringTransformer('Hello'),
+    user: new StringTransformer('Bob')
+  }
+);
+
+console.log(response.variables.greeting); // StringTransformer instance
+console.log(response.variables.user);     // StringTransformer instance
+```
+
+### Working with Actions
+
+```ts
+import { Interpreter, RequireParser } from 'tagscript';
+
+const ts = new Interpreter(new RequireParser());
+
+const response = await ts.run(
+  '{require(123456789):You need this role!}'
+);
+
+// Check if require action was set
+if (response.actions.require) {
+  console.log('Required IDs:', response.actions.require.ids);
+  console.log('Message:', response.actions.require.message);
+}
+```
+
+### Using KeyValues in Custom Parsers
+
+```ts
+import { BaseParser, Context, Interpreter } from 'tagscript';
+
+// Extend IKeyValues
+declare module 'tagscript' {
+  interface IKeyValues {
+    userId?: string;
+  }
+}
+
+class UserIdParser extends BaseParser {
+  constructor() {
+    super(['userid']);
+  }
+  
+  async parse(ctx: Context) {
+    return ctx.response.keyValues.userId || 'No user ID';
+  }
+}
+
+const ts = new Interpreter(new UserIdParser());
+
+const response = await ts.run(
+  'User ID: {userid}',
+  {},
+  null,
+  2000,
+  ParenType.Both,
+  { userId: '123456789' }
+);
+
+console.log(response.body); // "User ID: 123456789"
+```
+
+### Serializing Response
+
+```ts
+import { Interpreter, StringTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const response = await ts.run(
+  '{greeting} {user}!',
+  {
+    greeting: new StringTransformer('Hi'),
+    user: new StringTransformer('Carol')
+  }
+);
+
+// Convert to JSON for storage or transmission
+const json = JSON.stringify(response.toJSON());
+console.log(json);
+```
+
+### Checking Processing Success
+
+```ts
+import { Interpreter, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const response = await ts.run('{unknown}');
+
+if (response.body === response.raw) {
+  console.log('No tags were processed');
+} else {
+  console.log('Tags were successfully processed');
+}
+```
+
+## See Also
+
+- [Interpreter](/api/interpreter) - Returns Response from the `run()` method
+- [Context](/api/context) - Contains the Response during processing
+- [IActions](/api/response#iactions-interface) - Interface for action data
+- [IKeyValues](/api/response#ikeyvalues-interface) - Interface for key-value data

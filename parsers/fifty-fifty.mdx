@@ -1,0 +1,91 @@
+---
+title: FiftyFiftyParser
+description: Parser that returns payload with 50% probability for random outcomes
+---
+
+# FiftyFiftyParser
+
+The fifty-fifty tag has a 50% chance of returning the payload, and a 50% chance of returning an empty string. This parser is useful for creating random events or decisions with equal probability.
+
+## Usage
+
+```typescript
+import { Interpreter, FiftyFiftyParser } from 'tagscript';
+const ts = new Interpreter(new FiftyFiftyParser());
+```
+
+## Syntax
+
+```yaml
+{5050:message}
+{50:message}
+{?:message}
+```
+
+<ParamField path="message" type="string" required>
+  The message to return 50% of the time. Returns empty string the other 50%.
+</ParamField>
+
+## Examples
+
+### Basic Usage
+
+```yaml
+{5050:You got lucky!}
+# 50% chance: You got lucky!
+# 50% chance: (empty string)
+```
+
+### Coin Flip
+
+```yaml
+I pick {if({5050:.}!=):heads|tails}
+# 50% chance: I pick heads
+# 50% chance: I pick tails
+```
+
+### Rare Event
+
+```yaml
+{?:Rare event occurred! }Welcome to the server!
+# 50% chance: Rare event occurred! Welcome to the server!
+# 50% chance: Welcome to the server!
+```
+
+### Conditional Bonus
+
+```yaml
+You earned {range:10-20} points{5050: + 5 bonus points}!
+# 50% chance: You earned 15 points + 5 bonus points!
+# 50% chance: You earned 15 points!
+```
+
+## Aliases
+
+- `5050`
+- `50`
+- `?`
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns the payload 50% of the time, or an empty string the other 50%.
+</ResponseField>
+
+## Implementation Details
+
+The parser internally creates an array with two elements: an empty string and the payload. It then randomly selects one of these elements using `Math.random()`.
+
+```typescript
+const spl = ['', ctx.tag.payload];
+const index = Math.floor(Math.random() * spl.length);
+return spl[index];
+```
+
+## Use Cases
+
+- **Random Events**: Trigger special messages or bonuses randomly
+- **Coin Flips**: Create binary random outcomes
+- **Variety**: Add randomness to responses to make them less predictable
+- **Easter Eggs**: Hide occasional special content
+- **A/B Testing**: Randomly show different content variations

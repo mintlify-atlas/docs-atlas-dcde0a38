@@ -1,0 +1,703 @@
+---
+title: Basic Usage Examples
+description: Common patterns and examples for using TagScript
+---
+
+# Basic Usage Examples
+
+Learn TagScript fundamentals through practical examples covering common use cases.
+
+## Getting Started
+
+### Simple Tag Parsing
+
+The most basic TagScript usage involves creating an Interpreter and running a template.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, RandomParser, IfStatementParser } from 'tagscript';
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser()
+);
+
+const result = await ts.run(
+  '{random: Hello, Hi, Hey} there! {if(1==1):This is true|This is false}'
+);
+
+console.log(result.body);
+// Possible outputs:
+// "Hello there! This is true"
+// "Hi there! This is true"
+// "Hey there! This is true"
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, RandomParser, IfStatementParser } = require('tagscript');
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser()
+);
+
+const result = await ts.run(
+  '{random: Hello, Hi, Hey} there! {if(1==1):This is true|This is false}'
+);
+
+console.log(result.body);
+// Possible outputs:
+// "Hello there! This is true"
+// "Hi there! This is true"
+// "Hey there! This is true"
+```
+</Tabs>
+
+### Using Variables
+
+Pass variables to templates using the `StrictVarsParser`:
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, StrictVarsParser } from 'tagscript';
+import { StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Hello {user}! You have {points} points.',
+  {
+    user: new StringTransformer('Alice'),
+    points: new StringTransformer('150')
+  }
+);
+
+console.log(result.body);
+// "Hello Alice! You have 150 points."
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, StrictVarsParser, StringTransformer } = require('tagscript');
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Hello {user}! You have {points} points.',
+  {
+    user: new StringTransformer('Alice'),
+    points: new StringTransformer('150')
+  }
+);
+
+console.log(result.body);
+// "Hello Alice! You have 150 points."
+```
+</Tabs>
+
+## Common Patterns
+
+### Random Selections
+
+Pick random items from a list:
+
+```yaml
+{random: apple, banana, orange, grape}
+# One of: apple, banana, orange, grape
+
+{random: You won~You lost~Try again}
+# One of: You won, You lost, Try again
+```
+
+**Real-world Example - Random Greetings:**
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, RandomParser, StrictVarsParser } from 'tagscript';
+import { StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new StrictVarsParser()
+);
+
+const greetings = [
+  'Welcome',
+  'Hello',
+  'Greetings',
+  'Hey there',
+  'Good to see you'
+];
+
+const template = `{random: ${greetings.join(', ')}}, {username}!`;
+
+const result = await ts.run(template, {
+  username: new StringTransformer('Alex')
+});
+
+console.log(result.body);
+// Random output like: "Welcome, Alex!" or "Hey there, Alex!"
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, RandomParser, StrictVarsParser, StringTransformer } = require('tagscript');
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new StrictVarsParser()
+);
+
+const greetings = [
+  'Welcome',
+  'Hello',
+  'Greetings',
+  'Hey there',
+  'Good to see you'
+];
+
+const template = `{random: ${greetings.join(', ')}}, {username}!`;
+
+const result = await ts.run(template, {
+  username: new StringTransformer('Alex')
+});
+
+console.log(result.body);
+// Random output like: "Welcome, Alex!" or "Hey there, Alex!"
+```
+</Tabs>
+
+### Conditional Logic
+
+Use `IfStatementParser` for conditional outputs:
+
+```yaml
+{if({score}>=90): Excellent!|{if({score}>=70): Good job!|Needs improvement}}
+```
+
+**Real-world Example - Grade Calculator:**
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, IfStatementParser, StrictVarsParser } from 'tagscript';
+import { IntegerTransformer } from 'tagscript';
+
+const ts = new Interpreter(
+  new IfStatementParser(),
+  new StrictVarsParser()
+);
+
+function getGradeFeedback(score: number): string {
+  const template = `
+Your score: {score}/100
+Grade: {if({score}>=90):A|{if({score}>=80):B|{if({score}>=70):C|{if({score}>=60):D|F}}}}
+Feedback: {if({score}>=90):Excellent work!|{if({score}>=70):Good job!|{if({score}>=60):You passed!|Needs improvement}}}
+  `.trim();
+
+  const result = ts.run(template, {
+    score: new IntegerTransformer(score)
+  });
+
+  return result.body;
+}
+
+console.log(getGradeFeedback(95));
+// Your score: 95/100
+// Grade: A
+// Feedback: Excellent work!
+
+console.log(getGradeFeedback(72));
+// Your score: 72/100
+// Grade: C
+// Feedback: Good job!
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, IfStatementParser, StrictVarsParser, IntegerTransformer } = require('tagscript');
+
+const ts = new Interpreter(
+  new IfStatementParser(),
+  new StrictVarsParser()
+);
+
+function getGradeFeedback(score) {
+  const template = `
+Your score: {score}/100
+Grade: {if({score}>=90):A|{if({score}>=80):B|{if({score}>=70):C|{if({score}>=60):D|F}}}}
+Feedback: {if({score}>=90):Excellent work!|{if({score}>=70):Good job!|{if({score}>=60):You passed!|Needs improvement}}}
+  `.trim();
+
+  const result = ts.run(template, {
+    score: new IntegerTransformer(score)
+  });
+
+  return result.body;
+}
+
+console.log(getGradeFeedback(95));
+// Your score: 95/100
+// Grade: A
+// Feedback: Excellent work!
+
+console.log(getGradeFeedback(72));
+// Your score: 72/100
+// Grade: C
+// Feedback: Good job!
+```
+</Tabs>
+
+### String Manipulation
+
+Use built-in parsers for string operations:
+
+**Slicing:**
+
+```yaml
+{slice(0,5): Hello World}
+# "Hello"
+
+{slice(6): Hello World}
+# "World"
+```
+
+**Replacing:**
+
+```yaml
+{replace(old, new): This is old text}
+# "This is new text"
+```
+
+**Real-world Example - Text Processing:**
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import {
+  Interpreter,
+  SliceParser,
+  ReplaceParser,
+  StrictVarsParser
+} from 'tagscript';
+import { StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(
+  new SliceParser(),
+  new ReplaceParser(),
+  new StrictVarsParser()
+);
+
+// Extract username without tag
+const result1 = await ts.run(
+  '{slice(0,-5): {fullname}}',
+  { fullname: new StringTransformer('User#1234') }
+);
+console.log(result1.body); // "User"
+
+// Censor bad words
+const result2 = await ts.run(
+  '{replace(badword, ***): This has a badword in it}'
+);
+console.log(result2.body); // "This has a *** in it"
+
+// Format mentions
+const result3 = await ts.run(
+  '{replace(@, ): {mention}}',
+  { mention: new StringTransformer('@everyone') }
+);
+console.log(result3.body); // "everyone"
+```
+```js tab="JavaScript" showLineNumbers
+const {
+  Interpreter,
+  SliceParser,
+  ReplaceParser,
+  StrictVarsParser,
+  StringTransformer
+} = require('tagscript');
+
+const ts = new Interpreter(
+  new SliceParser(),
+  new ReplaceParser(),
+  new StrictVarsParser()
+);
+
+// Extract username without tag
+const result1 = await ts.run(
+  '{slice(0,-5): {fullname}}',
+  { fullname: new StringTransformer('User#1234') }
+);
+console.log(result1.body); // "User"
+
+// Censor bad words
+const result2 = await ts.run(
+  '{replace(badword, ***): This has a badword in it}'
+);
+console.log(result2.body); // "This has a *** in it"
+
+// Format mentions
+const result3 = await ts.run(
+  '{replace(@, ): {mention}}',
+  { mention: new StringTransformer('@everyone') }
+);
+console.log(result3.body); // "everyone"
+```
+</Tabs>
+
+### Combining Parsers
+
+Chain multiple parsers together:
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import {
+  Interpreter,
+  RandomParser,
+  IfStatementParser,
+  SliceParser,
+  StrictVarsParser
+} from 'tagscript';
+import { IntegerTransformer, StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser(),
+  new SliceParser(),
+  new StrictVarsParser()
+);
+
+const rpgTemplate = `
+{random: You encounter a dragon, You find a treasure chest, A merchant approaches you}!
+
+{if({level}>=10):
+  {random: You defeat it easily, You handle it with skill}
+|
+  {random: You flee in terror, You barely escape}
+}
+
+Status: Level {level} - {slice(0,10): {username}}
+`;
+
+const result = await ts.run(rpgTemplate, {
+  level: new IntegerTransformer(15),
+  username: new StringTransformer('DragonSlayer99')
+});
+
+console.log(result.body);
+// Possible output:
+// "You find a treasure chest!
+// You handle it with skill
+// Status: Level 15 - DragonSlay"
+```
+```js tab="JavaScript" showLineNumbers
+const {
+  Interpreter,
+  RandomParser,
+  IfStatementParser,
+  SliceParser,
+  StrictVarsParser,
+  IntegerTransformer,
+  StringTransformer
+} = require('tagscript');
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser(),
+  new SliceParser(),
+  new StrictVarsParser()
+);
+
+const rpgTemplate = `
+{random: You encounter a dragon, You find a treasure chest, A merchant approaches you}!
+
+{if({level}>=10):
+  {random: You defeat it easily, You handle it with skill}
+|
+  {random: You flee in terror, You barely escape}
+}
+
+Status: Level {level} - {slice(0,10): {username}}
+`;
+
+const result = await ts.run(rpgTemplate, {
+  level: new IntegerTransformer(15),
+  username: new StringTransformer('DragonSlayer99')
+});
+
+console.log(result.body);
+// Possible output:
+// "You find a treasure chest!
+// You handle it with skill
+// Status: Level 15 - DragonSlay"
+```
+</Tabs>
+
+## Discord Bot Examples
+
+### Welcome Message System
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Client, GatewayIntentBits } from 'discord.js';
+import { Interpreter, StrictVarsParser, RandomParser } from 'tagscript';
+import { MemberTransformer, GuildTransformer } from '@tagscript/plugin-discord';
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+});
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new RandomParser()
+);
+
+const welcomeMessages = [
+  'Welcome {member.mention} to {guild.name}! 🎉',
+  'Hey {member.mention}, glad you could join {guild.name}!',
+  '{member.mention} just joined the server - glhf!',
+  'Welcome {member.mention}. Say hi!',
+  'Everyone welcome {member.mention}!'
+];
+
+const template = `{random: ${welcomeMessages.join('~')}}`;
+
+client.on('guildMemberAdd', async (member) => {
+  const result = await ts.run(template, {
+    member: new MemberTransformer(member),
+    guild: new GuildTransformer(member.guild)
+  });
+
+  const channel = member.guild.systemChannel;
+  if (channel) {
+    await channel.send(result.body);
+  }
+});
+
+client.login('your-token-here');
+```
+```js tab="JavaScript" showLineNumbers
+const { Client, GatewayIntentBits } = require('discord.js');
+const { Interpreter, StrictVarsParser, RandomParser } = require('tagscript');
+const { MemberTransformer, GuildTransformer } = require('@tagscript/plugin-discord');
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+});
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new RandomParser()
+);
+
+const welcomeMessages = [
+  'Welcome {member.mention} to {guild.name}! 🎉',
+  'Hey {member.mention}, glad you could join {guild.name}!',
+  '{member.mention} just joined the server - glhf!',
+  'Welcome {member.mention}. Say hi!',
+  'Everyone welcome {member.mention}!'
+];
+
+const template = `{random: ${welcomeMessages.join('~')}}`;
+
+client.on('guildMemberAdd', async (member) => {
+  const result = await ts.run(template, {
+    member: new MemberTransformer(member),
+    guild: new GuildTransformer(member.guild)
+  });
+
+  const channel = member.guild.systemChannel;
+  if (channel) {
+    await channel.send(result.body);
+  }
+});
+
+client.login('your-token-here');
+```
+</Tabs>
+
+### Custom Command System
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Client, GatewayIntentBits, Message } from 'discord.js';
+import {
+  Interpreter,
+  StrictVarsParser,
+  RandomParser,
+  IfStatementParser
+} from 'tagscript';
+import {
+  MemberTransformer,
+  UserTransformer,
+  GuildTransformer
+} from '@tagscript/plugin-discord';
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new RandomParser(),
+  new IfStatementParser()
+);
+
+// Store custom commands
+const customCommands = new Map([
+  ['ping', 'Pong! 🏓'],
+  ['hello', 'Hello {user.mention}! Welcome to {guild.name}!'],
+  ['roll', 'You rolled: {random: 1, 2, 3, 4, 5, 6}'],
+  ['8ball', '{random: Yes, No, Maybe, Ask again later, Definitely, Not a chance}'],
+  ['serverinfo', `
+Server: {guild.name}
+Members: {guild.memberCount}
+Owner: <@{guild.ownerId}>
+  `.trim()]
+]);
+
+client.on('messageCreate', async (message: Message) => {
+  if (message.author.bot || !message.content.startsWith('!')) return;
+
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args[0].toLowerCase();
+
+  const template = customCommands.get(commandName);
+  if (!template) return;
+
+  const result = await ts.run(template, {
+    user: new UserTransformer(message.author),
+    member: new MemberTransformer(message.member!),
+    guild: new GuildTransformer(message.guild!)
+  });
+
+  await message.reply(result.body);
+});
+
+client.login('your-token-here');
+```
+```js tab="JavaScript" showLineNumbers
+const { Client, GatewayIntentBits } = require('discord.js');
+const {
+  Interpreter,
+  StrictVarsParser,
+  RandomParser,
+  IfStatementParser
+} = require('tagscript');
+const {
+  MemberTransformer,
+  UserTransformer,
+  GuildTransformer
+} = require('@tagscript/plugin-discord');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new RandomParser(),
+  new IfStatementParser()
+);
+
+// Store custom commands
+const customCommands = new Map([
+  ['ping', 'Pong! 🏓'],
+  ['hello', 'Hello {user.mention}! Welcome to {guild.name}!'],
+  ['roll', 'You rolled: {random: 1, 2, 3, 4, 5, 6}'],
+  ['8ball', '{random: Yes, No, Maybe, Ask again later, Definitely, Not a chance}'],
+  ['serverinfo', `
+Server: {guild.name}
+Members: {guild.memberCount}
+Owner: <@{guild.ownerId}>
+  `.trim()]
+]);
+
+client.on('messageCreate', async (message) => {
+  if (message.author.bot || !message.content.startsWith('!')) return;
+
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args[0].toLowerCase();
+
+  const template = customCommands.get(commandName);
+  if (!template) return;
+
+  const result = await ts.run(template, {
+    user: new UserTransformer(message.author),
+    member: new MemberTransformer(message.member),
+    guild: new GuildTransformer(message.guild)
+  });
+
+  await message.reply(result.body);
+});
+
+client.login('your-token-here');
+```
+</Tabs>
+
+## Best Practices
+
+<Callout type="info">
+**Reuse Interpreter Instances**
+
+Create the Interpreter once and reuse it for better performance:
+
+```ts
+// Good: Create once
+const ts = new Interpreter(new StrictVarsParser());
+
+// Use many times
+await ts.run(template1, vars1);
+await ts.run(template2, vars2);
+```
+
+```ts
+// Bad: Creating new instance each time
+await new Interpreter(new StrictVarsParser()).run(template1, vars1);
+await new Interpreter(new StrictVarsParser()).run(template2, vars2);
+```
+</Callout>
+
+### Error Handling
+
+Always handle errors gracefully:
+
+```ts showLineNumbers
+try {
+  const result = await ts.run(userTemplate, variables);
+  await message.reply(result.body);
+} catch (error) {
+  console.error('TagScript error:', error);
+  await message.reply('There was an error processing your tag.');
+}
+```
+
+### Template Validation
+
+Validate user-submitted templates before storing:
+
+```ts showLineNumbers
+function validateTemplate(template: string): boolean {
+  try {
+    // Test parse
+    ts.run(template, {});
+    
+    // Check length
+    if (template.length > 2000) return false;
+    
+    // Check for valid syntax
+    const openBraces = (template.match(/{/g) || []).length;
+    const closeBraces = (template.match(/}/g) || []).length;
+    if (openBraces !== closeBraces) return false;
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+```
+
+## Next Steps
+
+- [Create Custom Parsers](/examples/custom-parsers)
+- [Advanced Patterns](/examples/advanced-patterns)
+- [Discord Plugin Guide](/plugins/discord)

@@ -1,0 +1,223 @@
+---
+title: Plugin System Overview
+description: Overview of the TagScript plugin system and available plugins
+---
+
+# Plugin System Overview
+
+TagScript supports a powerful plugin system that extends the core functionality with specialized parsers and transformers. Plugins allow you to add domain-specific features like Discord.js integration, custom parsers, and more.
+
+## What Are Plugins?
+
+Plugins in TagScript are packages that provide:
+
+- **Parsers**: Process specific tag syntax and return values (e.g., `{embed}`, `{delete}`)
+- **Transformers**: Convert objects into safe, template-ready data (e.g., Discord User, GuildMember)
+- **Utilities**: Helper functions for common tasks
+
+## Available Plugins
+
+### Official Plugins
+
+#### @tagscript/plugin-discord
+
+Provides Discord.js integration with parsers and transformers for Discord bots.
+
+**Features:**
+- Discord object transformers (User, GuildMember, Guild, Role, Channel)
+- Message formatting parsers (Embed, Files, Format)
+- Behavior control parsers (Silent, Delete, Cooldown, Allow/Deny)
+
+**Installation:**
+
+```package-install
+@tagscript/plugin-discord
+```
+
+**Quick Example:**
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, StrictVarsParser } from 'tagscript';
+import { MemberTransformer, EmbedParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser()
+);
+
+const result = await ts.run(
+  'Welcome {member.username}! {embed(title): Welcome} {embed(description): Enjoy your stay!}',
+  { member: new MemberTransformer(guildMember) }
+);
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, StrictVarsParser } = require('tagscript');
+const { MemberTransformer, EmbedParser } = require('@tagscript/plugin-discord');
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser()
+);
+
+const result = await ts.run(
+  'Welcome {member.username}! {embed(title): Welcome} {embed(description): Enjoy your stay!}',
+  { member: new MemberTransformer(guildMember) }
+);
+```
+</Tabs>
+
+[Learn more about the Discord plugin →](/plugins/discord)
+
+## Using Plugins
+
+<Steps>
+
+### Install the plugin
+
+Install the plugin package along with its peer dependencies:
+
+```bash
+npm install @tagscript/plugin-discord tagscript discord.js
+```
+
+### Import parsers and transformers
+
+Import the specific parsers and transformers you need:
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, StrictVarsParser } from 'tagscript';
+import {
+  MemberTransformer,
+  UserTransformer,
+  EmbedParser,
+  SilentParser
+} from '@tagscript/plugin-discord';
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, StrictVarsParser } = require('tagscript');
+const {
+  MemberTransformer,
+  UserTransformer,
+  EmbedParser,
+  SilentParser
+} = require('@tagscript/plugin-discord');
+```
+</Tabs>
+
+### Add to interpreter
+
+Pass the parsers to the Interpreter constructor:
+
+```ts showLineNumbers
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser(),
+  new SilentParser()
+);
+```
+
+### Use in templates
+
+Use the plugin features in your tag templates:
+
+```ts showLineNumbers
+const result = await ts.run(
+  '{embed(title): Hello {member.username}}',
+  { member: new MemberTransformer(guildMember) }
+);
+```
+
+</Steps>
+
+## Creating Custom Plugins
+
+You can create your own plugins by implementing custom parsers and transformers.
+
+### Plugin Structure
+
+A typical plugin package structure:
+
+```
+my-tagscript-plugin/
+├── src/
+│   ├── parsers/
+│   │   ├── MyParser.ts
+│   │   └── index.ts
+│   ├── transformers/
+│   │   ├── MyTransformer.ts
+│   │   └── index.ts
+│   └── index.ts
+├── package.json
+└── README.md
+```
+
+### Example Plugin
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+// src/parsers/GreetParser.ts
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+export class GreetParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['greet'], false, true); // accepts 'greet', no required parameter, requires payload
+  }
+
+  public parse(ctx: Context) {
+    const name = ctx.tag.payload;
+    return `Hello, ${name}! Welcome!`;
+  }
+}
+
+// src/index.ts
+export * from './parsers/GreetParser';
+```
+```js tab="JavaScript" showLineNumbers
+// src/parsers/GreetParser.js
+const { BaseParser } = require('tagscript');
+
+class GreetParser extends BaseParser {
+  constructor() {
+    super(['greet'], false, true); // accepts 'greet', no required parameter, requires payload
+  }
+
+  parse(ctx) {
+    const name = ctx.tag.payload;
+    return `Hello, ${name}! Welcome!`;
+  }
+}
+
+// src/index.js
+module.exports = { GreetParser };
+```
+</Tabs>
+
+[Learn how to create custom parsers →](/examples/custom-parsers)
+
+## Best Practices
+
+<Callout type="info">
+**Parser Order Matters**
+
+Parsers are executed in the order they're added to the Interpreter. Place more specific parsers before generic ones.
+</Callout>
+
+### Performance Tips
+
+- Only include parsers you actually use
+- Cache Interpreter instances instead of creating new ones for each tag execution
+- Use async parsers only when necessary
+
+### Security Considerations
+
+- Transformers automatically filter out sensitive data by only exposing safe values
+- Always validate user input before passing to transformers
+- Use the `StrictVarsParser` to prevent access to undefined variables
+
+## Next Steps
+
+- [Discord Plugin Documentation](/plugins/discord)
+- [Custom Parser Tutorial](/examples/custom-parsers)
+- [Advanced Patterns](/examples/advanced-patterns)

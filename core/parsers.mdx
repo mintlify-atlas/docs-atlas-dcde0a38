@@ -1,0 +1,471 @@
+---
+title: Parsers
+description: Understanding parsers, the IParser interface, and how to create custom parsers
+---
+
+# Parsers
+
+Parsers are the primary building blocks of TagScript. They process tags and return transformed output based on the tag's declaration, parameters, and payload.
+
+## What Are Parsers?
+
+Parsers are classes that implement the `IParser` interface. They:
+
+1. **Accept** specific tag declarations
+2. **Parse** the tag's components (declaration, parameters, payload)
+3. **Transform** the tag into output
+4. **Return** the result as a string
+
+## The IParser Interface
+
+From `/home/daytona/workspace/source/packages/tagscript/src/lib/interfaces/index.ts:18-32`:
+
+```typescript
+export interface IParser {
+  /**
+   * Parses the given tag.
+   *
+   * @param ctx - The context of the tag.
+   */
+  parse: (ctx: Context) => Awaitable<string | null>;
+  
+  /**
+   * Whether the parser can handle the given tag.
+   *
+   * @param ctx - The context of the tag.
+   */
+  willAccept: (ctx: Context) => Awaitable<boolean>;
+}
+```
+
+### `willAccept` Method
+
+Determines if the parser should handle a given tag. Returns `true` if the parser accepts the tag, `false` otherwise.
+
+```typescript
+willAccept(ctx: Context): boolean | Promise<boolean>
+```
+
+**Purpose**: Filter tags before parsing to ensure only relevant tags are processed.
+
+### `parse` Method
+
+Processes the tag and returns the transformed output. Returns a string with the result, or `null` if the parser cannot process the tag.
+
+```typescript
+parse(ctx: Context): string | null | Promise<string | null>
+```
+
+**Purpose**: Transform the tag into its final output.
+
+<Note>
+Returning `null` from `parse` tells the interpreter to leave the tag unchanged and try the next parser.
+</Note>
+
+## The Context Object
+
+Both methods receive a `Context` object (from `/home/daytona/workspace/source/packages/tagscript/src/lib/Interpreter/Context.ts:7-30`) containing:
+
+```typescript
+class Context {
+  /** The tag object representing a TagScript tag */
+  public tag: Lexer;
+  
+  /** The response object for this processing run */
+  public response: Response;
+  
+  /** The original message passed to the interpreter */
+  public originalMessage: string;
+  
+  /** The interpreter parsing the TagScript */
+  public interpreter: Interpreter;
+}
+```
+
+### Accessing Tag Components
+
+```typescript
+public parse(ctx: Context): string | null {
+  const declaration = ctx.tag.declaration;  // e.g., "random"
+  const parameter = ctx.tag.parameter;      // e.g., "param"
+  const payload = ctx.tag.payload;          // e.g., "item1,item2,item3"
+  
+  // Your parsing logic here
+}
+```
+
+## BaseParser Abstract Class
+
+TagScript provides a `BaseParser` class that implements common `willAccept` logic. From `/home/daytona/workspace/source/packages/tagscript/src/lib/Parsers/Base.ts:7-36`:
+
+```typescript
+export abstract class BaseParser {
+  protected acceptedNames: string[];
+  protected requiredParameter: boolean;
+  protected requiredPayload: boolean;
+
+  public constructor(
+    acceptedNames: string[],
+    requiredParameter = false,
+    requiredPayload = false
+  ) {
+    this.acceptedNames = acceptedNames;
+    this.requiredParameter = requiredParameter;
+    this.requiredPayload = requiredPayload;
+  }
+
+  public willAccept(ctx: Context): boolean {
+    const dec = ctx.tag.declaration?.toLowerCase();
+    return (
+      this.acceptedNames.includes(dec!) &&
+      Boolean(!this.requiredParameter || ctx.tag.parameter) &&
+      Boolean(!this.requiredPayload || ctx.tag.payload)
+    );
+  }
+}
+```
+
+### Constructor Parameters
+
+- **acceptedNames**: Array of tag names this parser accepts (e.g., `['random', 'rand']`)
+- **requiredParameter**: Whether the tag must have a parameter (default: `false`)
+- **requiredPayload**: Whether the tag must have a payload (default: `false`)
+
+<Info>
+Extending `BaseParser` saves you from implementing `willAccept` logic for common use cases.
+</Info>
+
+## Creating a Custom Parser
+
+### Simple Parser Example
+
+Let's create a parser that converts text to uppercase:
+
+```typescript
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+export class UppercaseParser extends BaseParser implements IParser {
+  public constructor() {
+    super(
+      ['uppercase', 'upper'],  // Accepted tag names
+      false,                    // Parameter not required
+      true                      // Payload required
+    );
+  }
+
+  public parse(ctx: Context): string | null {
+    if (!ctx.tag.payload) return null;
+    return ctx.tag.payload.toUpperCase();
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const ts = new Interpreter(new UppercaseParser());
+const result = await ts.run('{uppercase:hello world}');
+console.log(result.body); // "HELLO WORLD"
+```
+
+### Parser with Parameters
+
+Let's create a parser that repeats text:
+
+```typescript
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+export class RepeatParser extends BaseParser implements IParser {
+  public constructor() {
+    super(
+      ['repeat'],  // Accepted tag names
+      true,        // Parameter required (repeat count)
+      true         // Payload required (text to repeat)
+    );
+  }
+
+  public parse(ctx: Context): string | null {
+    const count = parseInt(ctx.tag.parameter || '1', 10);
+    if (isNaN(count) || count <= 0) return null;
+    
+    return ctx.tag.payload!.repeat(count);
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const ts = new Interpreter(new RepeatParser());
+const result = await ts.run('{repeat(3):Ha}');
+console.log(result.body); // "HaHaHa"
+```
+
+### Async Parser Example
+
+Let's create a parser that fetches data from a URL:
+
+```typescript
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+export class FetchParser extends BaseParser implements IParser {
+  public constructor() {
+    super(
+      ['fetch'],
+      false,  // Parameter not required
+      true    // Payload required (URL)
+    );
+  }
+
+  public async parse(ctx: Context): Promise<string | null> {
+    if (!ctx.tag.payload) return null;
+    
+    try {
+      const response = await fetch(ctx.tag.payload.trim());
+      return await response.text();
+    } catch (error) {
+      return `Error: ${(error as Error).message}`;
+    }
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const ts = new Interpreter(new FetchParser());
+const result = await ts.run('{fetch:https://api.example.com/data}');
+console.log(result.body); // Response from URL
+```
+
+<Warning>
+Be careful with async parsers that make external requests. Always implement timeouts and error handling.
+</Warning>
+
+## Advanced Parser Patterns
+
+### Accessing Response Variables
+
+Parsers can access and modify variables in the response:
+
+```typescript
+import { BaseParser, type Context, type IParser, StringTransformer } from 'tagscript';
+
+export class SetVarParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['set'], true, true);
+  }
+
+  public parse(ctx: Context): string | null {
+    const varName = ctx.tag.parameter!;
+    const value = ctx.tag.payload!;
+    
+    // Store variable for later use
+    ctx.response.variables[varName] = new StringTransformer(value);
+    
+    return ''; // Return empty string (don't output anything)
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const ts = new Interpreter(new SetVarParser(), new StrictVarsParser());
+const result = await ts.run('{set(name):Alice}Hello {name}!');
+console.log(result.body); // "Hello Alice!"
+```
+
+### Using Actions
+
+Parsers can store data in the `actions` object for later use:
+
+```typescript
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+// First, extend the IActions interface
+declare module 'tagscript' {
+  interface IActions {
+    redirectUrl?: string;
+  }
+}
+
+export class RedirectParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['redirect'], false, true);
+  }
+
+  public parse(ctx: Context): string | null {
+    const url = ctx.tag.payload?.trim();
+    if (!url) return null;
+    
+    // Store redirect URL in actions
+    ctx.response.actions.redirectUrl = url;
+    
+    return 'Redirecting...';
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const ts = new Interpreter(new RedirectParser());
+const result = await ts.run('Click here: {redirect:https://example.com}');
+
+console.log(result.body); // "Click here: Redirecting..."
+console.log(result.actions.redirectUrl); // "https://example.com"
+
+// Use the redirect URL in your application
+if (result.actions.redirectUrl) {
+  window.location.href = result.actions.redirectUrl;
+}
+```
+
+### Recursive Interpretation
+
+Parsers can recursively process nested tags:
+
+```typescript
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+export class EvalParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['eval'], false, true);
+  }
+
+  public async parse(ctx: Context): Promise<string | null> {
+    // Recursively process the payload
+    const processed = await ctx.interpreter.run(
+      ctx.tag.payload!,
+      ctx.response.variables
+    );
+    
+    return processed.body;
+  }
+}
+```
+
+## Built-in Parsers
+
+TagScript includes several built-in parsers:
+
+- **BreakParser** - Stops processing on a condition
+- **FiftyFiftyParser** - Random true/false
+- **IfStatementParser** - Conditional logic
+- **IntersectionStatementParser** - Multiple conditions (AND)
+- **RandomParser** - Pick random item from list
+- **RangeParser** - Generate number ranges
+- **ReplaceParser** - Find and replace text
+- **SliceParser** - Extract substring
+- **StopParser** - Halt all processing
+- **UnionStatementParser** - Multiple conditions (OR)
+
+See the [Parsers documentation](/parsers/overview) for details on each built-in parser.
+
+## Best Practices
+
+### 1. Validate Input
+
+Always validate tag components before processing:
+
+```typescript
+public parse(ctx: Context): string | null {
+  if (!ctx.tag.payload) return null;
+  if (!ctx.tag.parameter) return null;
+  
+  const count = parseInt(ctx.tag.parameter, 10);
+  if (isNaN(count)) return null;
+  
+  // Process...
+}
+```
+
+### 2. Handle Errors Gracefully
+
+```typescript
+public async parse(ctx: Context): Promise<string | null> {
+  try {
+    // Your logic
+  } catch (error) {
+    return `Error: ${(error as Error).message}`;
+  }
+}
+```
+
+### 3. Return `null` When Appropriate
+
+Return `null` if you can't process the tag:
+
+```typescript
+public parse(ctx: Context): string | null {
+  if (someCondition) {
+    return null; // Let another parser handle it
+  }
+  return processedOutput;
+}
+```
+
+### 4. Use Type Guards
+
+```typescript
+public parse(ctx: Context): string | null {
+  const param = ctx.tag.parameter;
+  if (typeof param !== 'string') return null;
+  
+  // param is definitely a string here
+}
+```
+
+### 5. Document Your Parser
+
+```typescript
+/**
+ * Reverses the payload text.
+ * 
+ * Syntax: {reverse:text}
+ * 
+ * Example:
+ * {reverse:hello} -> olleh
+ */
+export class ReverseParser extends BaseParser implements IParser {
+  // Implementation
+}
+```
+
+## Testing Parsers
+
+```typescript
+import { Interpreter } from 'tagscript';
+import { UppercaseParser } from './UppercaseParser';
+
+describe('UppercaseParser', () => {
+  it('should convert text to uppercase', async () => {
+    const ts = new Interpreter(new UppercaseParser());
+    const result = await ts.run('{uppercase:hello}');
+    
+    expect(result.body).toBe('HELLO');
+  });
+  
+  it('should handle empty payload', async () => {
+    const ts = new Interpreter(new UppercaseParser());
+    const result = await ts.run('{uppercase:}');
+    
+    expect(result.body).toBe('');
+  });
+});
+```
+
+## Common Pitfalls
+
+1. **Forgetting to handle null values**: Always check for `null` or `undefined` before using tag components
+2. **Not extending BaseParser**: Use `BaseParser` to avoid reimplementing `willAccept`
+3. **Blocking async operations**: Use `async/await` for I/O operations
+4. **Mutating context**: Don't modify `ctx.tag` directly
+5. **Not handling errors**: Always wrap risky operations in try-catch
+
+## Next Steps
+
+- Learn about [Transformers](/core/transformers) for handling variables
+- Explore [built-in parsers](/parsers/overview) for examples
+- Read the [Interpreter documentation](/core/interpreter) to understand the parsing pipeline

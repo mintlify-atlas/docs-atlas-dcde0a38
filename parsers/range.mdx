@@ -1,0 +1,141 @@
+---
+title: RangeParser
+description: Parser that generates random numbers within specified ranges
+---
+
+# RangeParser
+
+The range tag picks a random number from a range of numbers separated by `-` or `,`. The number range is inclusive, so it can pick the starting/ending number as well. Using the `rangef` tag will pick a number to the tenth decimal place for floating-point values.
+
+## Usage
+
+```typescript
+import { Interpreter, RangeParser } from 'tagscript';
+const ts = new Interpreter(new RangeParser());
+```
+
+## Syntax
+
+```yaml
+{range:min-max}
+{range:min,max}
+{rangef:min-max}
+{rangef:min,max}
+```
+
+<ParamField path="min" type="number" required>
+  The minimum value of the range (inclusive)
+</ParamField>
+
+<ParamField path="max" type="number" required>
+  The maximum value of the range (inclusive)
+</ParamField>
+
+## Examples
+
+### Integer Range
+
+```yaml
+{range:1-10}
+# Randomly outputs: 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10
+```
+
+### Lucky Number
+
+```yaml
+Your lucky number is {range:10-30}!
+# Your lucky number is 14!
+# Your lucky number is 25!
+```
+
+### Floating Point Range
+
+```yaml
+{rangef:5.0-7.0}
+I am guessing your height is {rangef:5-7}ft.
+# I am guessing your height is 5.3ft.
+# I am guessing your height is 6.8ft.
+```
+
+### Dice Roll
+
+```yaml
+Dice roll: {range:1,6}
+# Dice roll: 4
+# Dice roll: 1
+# Dice roll: 6
+```
+
+### Using Comma Separator
+
+```yaml
+{range:100,200}
+# Random number between 100 and 200
+```
+
+### Random Percentage
+
+```yaml
+Your score: {range:0-100}%
+# Your score: 73%
+# Your score: 92%
+```
+
+### Temperature
+
+```yaml
+Current temperature: {rangef:15.0-30.0}°C
+# Current temperature: 22.7°C
+# Current temperature: 18.3°C
+```
+
+## Aliases
+
+- `range` - Returns integer values
+- `rangef` - Returns floating-point values (one decimal place)
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns a random number within the specified range as a string.
+  
+  - **range**: Returns an integer
+  - **rangef**: Returns a float with one decimal place
+</ResponseField>
+
+## Implementation Details
+
+### Integer Range (`range`)
+
+```typescript
+const lower = Number.parseInt(spl[0], 10);
+const upper = Number.parseInt(spl[1], 10);
+const base = Math.floor(Math.random() * (upper - lower) + lower);
+return `${base}`;
+```
+
+### Floating Point Range (`rangef`)
+
+```typescript
+const lower = Number.parseFloat(spl[0]);
+const upper = Number.parseFloat(spl[1]);
+const base = Math.floor(Math.random() * (upper * 10 - lower * 10) + lower * 10) / 10;
+return `${base}`;
+```
+
+## Use Cases
+
+- **Dice Rolls**: Simulate dice with different numbers of sides
+- **Random Rewards**: Generate random point values or currency amounts
+- **Cooldowns**: Create variable cooldown periods
+- **Damage Calculations**: Random damage in games
+- **Randomized Content**: Generate random statistics or values
+- **Testing**: Create random test data
+
+## Notes
+
+- The range is **inclusive** - both min and max values can be selected
+- Both `-` and `,` can be used as separators
+- `rangef` returns values to exactly one decimal place
+- Negative ranges are supported (e.g., `{range:-10-10}`)
+- The min value should be less than the max value for expected results

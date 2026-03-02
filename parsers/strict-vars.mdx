@@ -1,0 +1,262 @@
+---
+title: StrictVarsParser
+description: Variable parser with strict validation during acceptance
+---
+
+# StrictVarsParser
+
+The strict variable parser represents the transformer for any seeded or defined variables. This variable implementation is considered "strict" since it checks whether the variable is valid during `willAccept` and is only parsed if the declaration refers to a valid variable.
+
+## Usage
+
+```typescript
+import { Interpreter, StrictVarsParser, DefineParser } from 'tagscript';
+const ts = new Interpreter(new DefineParser(), new StrictVarsParser());
+```
+
+## Syntax
+
+```yaml
+{variable_name}
+{variable.property}
+```
+
+<ParamField path="variable_name" type="string" required>
+  The name of a previously defined or seeded variable that must exist
+</ParamField>
+
+## Examples
+
+### Basic Variable Access
+
+```yaml
+{=(var):This is my variable.}
+{var}
+# This is my variable.
+```
+
+### Multiple Variables
+
+```yaml
+{=(username):Alice}
+{=(role):Administrator}
+User {username} has the {role} role.
+# User Alice has the Administrator role.
+```
+
+### Seeded Variables
+
+```typescript
+const ts = new Interpreter(new StrictVarsParser());
+const result = await ts.run('Welcome {user}!', {
+  user: new StringTransformer('Bob')
+});
+// Welcome Bob!
+```
+
+### Undefined Variables (Not Parsed)
+
+```yaml
+{undefined_var}
+# Remains as literal text: {undefined_var}
+```
+
+### With JSON Variables
+
+```yaml
+{json(config):{"theme": "dark", "lang": "en"}}
+Theme: {config.theme}
+Language: {config.lang}
+# Theme: dark
+# Language: en
+```
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns the variable's transformed value. Only called if the variable exists (validated in `willAccept`).
+</ResponseField>
+
+## Implementation Details
+
+```typescript
+public willAccept(ctx: Context) {
+  const declaration = ctx.tag.declaration!;
+  return declaration in ctx.response.variables;
+}
+
+public parse(ctx: Context) {
+  return ctx.response.variables[ctx.tag.declaration!].transform(ctx.tag);
+}
+```
+
+## Loose vs Strict Variables
+
+| Feature | LooseVarsParser | StrictVarsParser |
+|---------|----------------|------------------|
+| Validation | During parsing | During `willAccept` |
+| Undefined vars | Returns `null` | Left as literal text |
+| Performance | Slightly slower | Slightly faster |
+| Error handling | Silent failures | Clear indication (text unchanged) |
+| Use case | More forgiving | More strict, better debugging |
+
+## Use Cases
+
+- **Production Code**: Ensure variables are properly defined
+- **Strict Templates**: Only allow known, valid variables
+- **Debugging**: Easily spot undefined variable references
+- **Type Safety**: Prevent silent failures from typos
+- **Documentation**: Make variable requirements explicit
+
+## Working with DefineParser
+
+The most common use is with [DefineParser](/parsers/define):
+
+```yaml
+{=(server_name):Awesome Server}
+{=(member_count):1250}
+Welcome to {server_name} with {member_count} members!
+# Welcome to Awesome Server with 1250 members!
+```
+
+## Validation Benefits
+
+StrictVarsParser helps catch errors:
+
+```yaml
+{=(username):Alice}
+Hello {usename}!  # Typo in variable name
+# Output: Hello {usename}!  # Clearly visible error
+```
+
+With LooseVarsParser, this would silently output:
+```yaml
+Hello !  # Missing value, hard to debug
+```
+
+## Seeding Variables
+
+Pre-populate variables when creating interpreter:
+
+```typescript
+import { Interpreter, StrictVarsParser, StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const variables = {
+  user: new StringTransformer('Alice'),
+  server: new StringTransformer('Main Server'),
+  prefix: new StringTransformer('!')
+};
+
+const result = await ts.run(
+  'Welcome {user} to {server}! Use {prefix}help',
+  variables
+);
+// Welcome Alice to Main Server! Use !help
+```
+
+## Performance Considerations
+
+StrictVarsParser is slightly more efficient:
+
+- Validation happens in `willAccept` (before parsing)
+- Invalid variables are rejected early
+- No need to check existence during parsing
+- Reduces unnecessary parse operations
+
+## Notes
+
+- **Strict validation**: Only accepts variables that exist in `ctx.response.variables`
+- **Literal preservation**: Undefined variables remain as literal text
+- **Early rejection**: Invalid variables are rejected in `willAccept`
+- **No null returns**: Never returns `null` (only valid variables are parsed)
+- **Case-sensitive**: Variable names are case-sensitive
+- **Order matters**: Variables must be defined before use
+
+## Comparison Example
+
+```yaml
+{=(exists):I exist}
+
+# With StrictVarsParser
+{exists}        # "I exist"
+{doesnt_exist}  # "{doesnt_exist}" (literal text)
+
+# With LooseVarsParser
+{exists}        # "I exist"
+{doesnt_exist}  # null or empty (silent failure)
+```
+
+## Best Practices
+
+### 1. Define All Variables First
+
+```yaml
+{=(name):John}
+{=(age):25}
+{=(city):New York}
+
+Name: {name}
+Age: {age}
+City: {city}
+```
+
+### 2. Use for Type-Safe Templates
+
+```typescript
+// Template expects specific variables
+const template = 'Hello {username}, your balance is ${balance}';
+
+// Ensure all required variables are provided
+const vars = {
+  username: new StringTransformer(user.name),
+  balance: new StringTransformer(user.balance.toString())
+};
+
+const result = await ts.run(template, vars);
+```
+
+### 3. Validate Variable Names
+
+Undefined variables will be visible in output:
+
+```yaml
+Welcome {user_name}!  # If user_name doesn't exist, output shows {user_name}
+```
+
+### 4. Combine with Other Parsers
+
+```typescript
+const ts = new Interpreter(
+  new DefineParser(),      // Define variables
+  new JSONVarParser(),     // Parse JSON variables
+  new StrictVarsParser()   // Strict access
+);
+```
+
+## Error Detection
+
+StrictVarsParser makes debugging easier:
+
+```yaml
+{=(correct_name):Value}
+
+{correct_name}  # ✓ Works: "Value"
+{corect_name}   # ✗ Typo visible: "{corect_name}"
+{CORRECT_NAME}  # ✗ Case mismatch: "{CORRECT_NAME}"
+```
+
+## When to Use
+
+**Use StrictVarsParser when:**
+- You need reliable error detection
+- Working in production environments
+- Variable names are known in advance
+- You want clear visibility of undefined variables
+
+**Use LooseVarsParser when:**
+- Variables may be conditionally defined
+- You need more flexible parsing
+- Silent failures are acceptable
+- Working with dynamic, unpredictable data

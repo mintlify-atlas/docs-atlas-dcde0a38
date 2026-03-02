@@ -1,0 +1,148 @@
+---
+title: ReplaceParser
+description: Parser that replaces text patterns within strings
+---
+
+# ReplaceParser
+
+The replace tag replaces specific characters or substrings in a string with new values. The parameter should be split by a comma (`,`), containing the characters/text to find before the comma and the replacement text after.
+
+## Usage
+
+```typescript
+import { Interpreter, ReplaceParser } from 'tagscript';
+const ts = new Interpreter(new ReplaceParser());
+```
+
+## Syntax
+
+```yaml
+{replace(find,replacement):text}
+```
+
+<ParamField path="find" type="string" required>
+  The text to search for in the string. Can be a single character or substring.
+</ParamField>
+
+<ParamField path="replacement" type="string" required>
+  The text to replace found instances with. Can be empty to remove text.
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text to perform replacements on
+</ParamField>
+
+## Examples
+
+### Basic Character Replacement
+
+```yaml
+{replace(o,i):welcome to the server}
+# welcime ti the server
+```
+
+### Number Replacement
+
+```yaml
+{replace(1,6):1637812}
+# 6637862
+```
+
+### Add Spacing
+
+```yaml
+{replace(, ):Test}
+# T e s t
+```
+
+### Word Replacement
+
+```yaml
+{replace(old,new):This is the old way of doing things}
+# This is the new way of doing things
+```
+
+### Remove Characters
+
+```yaml
+{replace(@,at):user@example.com}
+# useratexample.com
+```
+
+### Remove Text (Empty Replacement)
+
+```yaml
+{replace(bad,):This is a bad word}
+# This is a  word
+```
+
+### Replace Spaces
+
+```yaml
+{replace( ,_):Hello World}
+# Hello_World
+```
+
+### Clean Up Text
+
+```yaml
+{replace(  , ):Too  many  spaces}
+# Too many spaces
+```
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns the text with all occurrences of the search pattern replaced with the replacement text.
+</ResponseField>
+
+## Implementation Details
+
+The parser uses JavaScript's `String.replaceAll()` method:
+
+```typescript
+const [before, ...rest] = ctx.tag.parameter!.split(',');
+const after = rest.join(',');
+return ctx.tag.payload!.replaceAll(before, after);
+```
+
+## Use Cases
+
+- **Text Sanitization**: Remove or replace unwanted characters
+- **Formatting**: Convert between different text formats
+- **Censorship**: Replace profanity or sensitive words
+- **Data Transformation**: Modify data formats (e.g., date formats)
+- **URL Manipulation**: Clean or modify URLs
+- **Username Processing**: Normalize usernames
+
+## Notes
+
+- **All occurrences** of the search text will be replaced
+- The replacement is **case-sensitive**
+- If you need to include a comma in the search or replacement text, it should be the last comma in the parameter
+- Empty strings are valid for both search and replacement values
+- The `rest.join(',')` ensures commas in the replacement text are preserved
+
+## Advanced Examples
+
+### Multiple Replacements (Chained)
+
+```yaml
+{replace(a,@):{replace(e,3):Hello there}}}
+# H3llo th3r3 → H3llo th3r3 (first pass)
+# H@llo th@r@ (after second replacement)
+```
+
+### Preserve Commas in Replacement
+
+```yaml
+{replace(and,, and):I like apples and oranges}
+# I like apples, and oranges
+```
+
+### Create Markdown
+
+```yaml
+{replace(``,**):This is important text}
+# This is **important** text
+```

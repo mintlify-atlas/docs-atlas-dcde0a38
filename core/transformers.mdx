@@ -1,0 +1,635 @@
+---
+title: Transformers
+description: Understanding transformers, the ITransformer interface, and how to create custom transformers
+---
+
+# Transformers
+
+Transformers are lightweight objects that provide dynamic values based on tag parameters. Unlike parsers, which handle tag declarations and complex logic, transformers simply transform a stored value based on the tag's parameter.
+
+## What Are Transformers?
+
+Transformers are classes that implement the `ITransformer` interface. They:
+
+1. **Store** a value (string, number, object, etc.)
+2. **Transform** that value based on tag parameters
+3. **Return** the transformed result as a string
+
+Transformers are passed to the interpreter as "seed variables" and are accessed via tag declarations.
+
+## The ITransformer Interface
+
+From `/home/daytona/workspace/source/packages/tagscript/src/lib/interfaces/index.ts:7-14`:
+
+```typescript
+export interface ITransformer {
+  /**
+   * Transforms the given tag.
+   *
+   * @param tag - The tag that triggered the transformer.
+   */
+  transform: (tag: Lexer) => string | null;
+}
+```
+
+### `transform` Method
+
+Receives a `Lexer` object (the parsed tag) and returns the transformed value.
+
+```typescript
+transform(tag: Lexer): string | null
+```
+
+- **Parameter**: `tag` - The Lexer object containing tag components
+- **Returns**: Transformed string value, or `null` if transformation fails
+
+## How Transformers Work
+
+Transformers are provided as seed variables when running the interpreter:
+
+```typescript
+import { Interpreter, StrictVarsParser, StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Hello {user}!',
+  {
+    user: new StringTransformer('Alice')  // Transformer for {user}
+  }
+);
+
+console.log(result.body); // "Hello Alice!"
+```
+
+When the interpreter encounters `{user}`, it:
+
+1. Looks up `user` in the variables
+2. Finds the `StringTransformer` instance
+3. Calls `transformer.transform(tag)`
+4. Replaces the tag with the returned value
+
+<Note>
+Transformers require a parser like `StrictVarsParser` or `LooseVarsParser` to actually process variable tags.
+</Note>
+
+## Built-in Transformers
+
+### StringTransformer
+
+Transforms string values with optional parameter-based modifications.
+
+```typescript
+import { StringTransformer } from 'tagscript';
+
+const name = new StringTransformer('Alice');
+const tag = new Lexer('{user}');
+
+console.log(name.transform(tag)); // "Alice"
+```
+
+### IntegerTransformer
+
+Transforms integer values with increment/decrement support.
+
+```typescript
+import { IntegerTransformer } from 'tagscript';
+
+const score = new IntegerTransformer('100');
+
+// No parameter: return current value
+const tag1 = new Lexer('{score}');
+console.log(score.transform(tag1)); // "100"
+
+// Increment
+const tag2 = new Lexer('{score.++}');
+console.log(score.transform(tag2)); // "101"
+
+// Decrement
+const tag3 = new Lexer('{score.--}');
+console.log(score.transform(tag3)); // "100"
+```
+
+<Info>
+`IntegerTransformer` modifies its internal state when using `++` or `--` parameters.
+</Info>
+
+## Creating Custom Transformers
+
+### Basic Transformer Example
+
+Let's create a transformer that stores a user object:
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+interface User {
+  name: string;
+  email: string;
+  role: string;
+}
+
+export class UserTransformer implements ITransformer {
+  private user: User;
+
+  public constructor(user: User) {
+    this.user = user;
+  }
+
+  public transform(tag: Lexer): string | null {
+    // No parameter: return name
+    if (!tag.parameter) {
+      return this.user.name;
+    }
+
+    // Parameter specifies which property to return
+    switch (tag.parameter.toLowerCase()) {
+      case 'name':
+        return this.user.name;
+      case 'email':
+        return this.user.email;
+      case 'role':
+        return this.user.role;
+      default:
+        return null;
+    }
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+import { Interpreter, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Name: {user.name}, Email: {user.email}, Role: {user.role}',
+  {
+    user: new UserTransformer({
+      name: 'Alice',
+      email: 'alice@example.com',
+      role: 'Admin'
+    })
+  }
+);
+
+console.log(result.body);
+// "Name: Alice, Email: alice@example.com, Role: Admin"
+```
+
+### Transformer with Methods
+
+Let's create a date transformer with formatting options:
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+export class DateTransformer implements ITransformer {
+  private date: Date;
+
+  public constructor(date: Date = new Date()) {
+    this.date = date;
+  }
+
+  public transform(tag: Lexer): string | null {
+    if (!tag.parameter) {
+      return this.date.toISOString();
+    }
+
+    switch (tag.parameter.toLowerCase()) {
+      case 'iso':
+        return this.date.toISOString();
+      case 'date':
+        return this.date.toDateString();
+      case 'time':
+        return this.date.toTimeString();
+      case 'locale':
+        return this.date.toLocaleString();
+      case 'year':
+        return this.date.getFullYear().toString();
+      case 'month':
+        return (this.date.getMonth() + 1).toString();
+      case 'day':
+        return this.date.getDate().toString();
+      default:
+        return null;
+    }
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const result = await ts.run(
+  'Today is {now.date}, Year: {now.year}',
+  {
+    now: new DateTransformer(new Date())
+  }
+);
+
+console.log(result.body);
+// "Today is Mon Mar 02 2026, Year: 2026"
+```
+
+### Stateful Transformer
+
+Transformers can maintain and modify state:
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+export class CounterTransformer implements ITransformer {
+  private count: number;
+
+  public constructor(initialValue = 0) {
+    this.count = initialValue;
+  }
+
+  public transform(tag: Lexer): string | null {
+    if (!tag.parameter) {
+      return this.count.toString();
+    }
+
+    switch (tag.parameter) {
+      case '++':
+        return (++this.count).toString();
+      case '--':
+        return (--this.count).toString();
+      case 'reset':
+        this.count = 0;
+        return '0';
+      default:
+        // Set to specific value
+        const value = parseInt(tag.parameter, 10);
+        if (!isNaN(value)) {
+          this.count = value;
+          return this.count.toString();
+        }
+        return null;
+    }
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const counter = new CounterTransformer(0);
+
+const result = await ts.run(
+  'Count: {count.++}, {count.++}, {count.++}, {count.reset}, {count.++}',
+  { count: counter }
+);
+
+console.log(result.body);
+// "Count: 1, 2, 3, 0, 1"
+```
+
+<Warning>
+Stateful transformers maintain state across multiple `transform` calls within the same interpreter run. Be careful with side effects.
+</Warning>
+
+## Advanced Transformer Patterns
+
+### Using Payload
+
+Transformers can access the tag's payload for more complex transformations:
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+export class MathTransformer implements ITransformer {
+  private value: number;
+
+  public constructor(value: number) {
+    this.value = value;
+  }
+
+  public transform(tag: Lexer): string | null {
+    if (!tag.parameter || !tag.payload) {
+      return this.value.toString();
+    }
+
+    const operand = parseFloat(tag.payload);
+    if (isNaN(operand)) return null;
+
+    switch (tag.parameter) {
+      case 'add':
+        return (this.value + operand).toString();
+      case 'sub':
+        return (this.value - operand).toString();
+      case 'mul':
+        return (this.value * operand).toString();
+      case 'div':
+        return operand !== 0 ? (this.value / operand).toString() : 'Error: Division by zero';
+      default:
+        return null;
+    }
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const result = await ts.run(
+  '{num.add:5}, {num.mul:2}, {num.div:4}',
+  { num: new MathTransformer(10) }
+);
+
+console.log(result.body);
+// "15, 20, 2.5"
+```
+
+### Fallback Values
+
+Transformers can use payload as fallback values:
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+export class OptionalTransformer implements ITransformer {
+  private value: string | null;
+
+  public constructor(value: string | null) {
+    this.value = value;
+  }
+
+  public transform(tag: Lexer): string | null {
+    // If value exists, return it
+    if (this.value !== null) {
+      return this.value;
+    }
+
+    // Otherwise, return payload as fallback
+    return tag.payload || null;
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const result = await ts.run(
+  'Name: {username:Guest}, Premium: {premium:No}',
+  {
+    username: new OptionalTransformer('Alice'),
+    premium: new OptionalTransformer(null)  // Will use fallback
+  }
+);
+
+console.log(result.body);
+// "Name: Alice, Premium: No"
+```
+
+### Array Transformer
+
+```typescript
+import type { ITransformer, Lexer } from 'tagscript';
+
+export class ArrayTransformer implements ITransformer {
+  private items: string[];
+
+  public constructor(items: string[]) {
+    this.items = items;
+  }
+
+  public transform(tag: Lexer): string | null {
+    if (!tag.parameter) {
+      return this.items.join(', ');
+    }
+
+    const index = parseInt(tag.parameter, 10);
+    if (!isNaN(index)) {
+      return this.items[index] || null;
+    }
+
+    switch (tag.parameter.toLowerCase()) {
+      case 'length':
+        return this.items.length.toString();
+      case 'first':
+        return this.items[0] || null;
+      case 'last':
+        return this.items[this.items.length - 1] || null;
+      case 'random':
+        return this.items[Math.floor(Math.random() * this.items.length)] || null;
+      default:
+        return null;
+    }
+  }
+}
+```
+
+**Usage:**
+
+```typescript
+const result = await ts.run(
+  'Items: {items}, First: {items.first}, Count: {items.length}, Random: {items.random}',
+  {
+    items: new ArrayTransformer(['apple', 'banana', 'cherry'])
+  }
+);
+
+console.log(result.body);
+// "Items: apple, banana, cherry, First: apple, Count: 3, Random: banana"
+```
+
+## Transformers vs Parsers
+
+| Feature | Transformers | Parsers |
+|---------|-------------|----------|
+| **Purpose** | Transform stored values | Process tag logic |
+| **Interface** | `ITransformer` | `IParser` |
+| **Method** | `transform(tag: Lexer)` | `parse(ctx: Context)`, `willAccept(ctx: Context)` |
+| **Usage** | Passed as seed variables | Registered with interpreter |
+| **Complexity** | Simple value transformation | Complex tag processing |
+| **State** | Can maintain state | Usually stateless |
+| **Example** | `{user.name}` | `{random:a,b,c}` |
+
+<Info>
+Use **transformers** for dynamic values and context variables. Use **parsers** for tag-based logic and operations.
+</Info>
+
+## Best Practices
+
+### 1. Keep Transformers Simple
+
+Transformers should focus on transforming a single value:
+
+```typescript
+// Good: Simple, focused transformer
+export class StringTransformer implements ITransformer {
+  public transform(tag: Lexer): string | null {
+    return this.value;
+  }
+}
+
+// Bad: Too complex, should be a parser
+export class ComplexTransformer implements ITransformer {
+  public transform(tag: Lexer): string | null {
+    // Complex parsing logic...
+    // Multiple API calls...
+    // Heavy computation...
+  }
+}
+```
+
+### 2. Handle Missing Parameters
+
+Always provide a default behavior when no parameter is given:
+
+```typescript
+public transform(tag: Lexer): string | null {
+  if (!tag.parameter) {
+    return this.defaultValue; // Default behavior
+  }
+  // Handle parameters
+}
+```
+
+### 3. Return `null` for Invalid Input
+
+```typescript
+public transform(tag: Lexer): string | null {
+  const index = parseInt(tag.parameter || '', 10);
+  if (isNaN(index)) return null; // Invalid input
+  
+  return this.items[index] || null; // Out of bounds
+}
+```
+
+### 4. Document Parameter Options
+
+```typescript
+/**
+ * Date transformer with formatting options.
+ * 
+ * Parameters:
+ * - (none): Returns ISO string
+ * - date: Returns date string
+ * - time: Returns time string
+ * - year: Returns year
+ * - month: Returns month
+ * - day: Returns day
+ * 
+ * Example:
+ * {now.date} -> "Mon Mar 02 2026"
+ * {now.year} -> "2026"
+ */
+export class DateTransformer implements ITransformer {
+  // Implementation
+}
+```
+
+### 5. Use TypeScript for Type Safety
+
+```typescript
+interface Config {
+  apiKey: string;
+  endpoint: string;
+}
+
+export class ConfigTransformer implements ITransformer {
+  private config: Config;
+
+  public constructor(config: Config) {
+    this.config = config;
+  }
+
+  public transform(tag: Lexer): string | null {
+    // TypeScript ensures config has the right shape
+    return this.config[tag.parameter as keyof Config] || null;
+  }
+}
+```
+
+## Testing Transformers
+
+```typescript
+import { Lexer } from 'tagscript';
+import { UserTransformer } from './UserTransformer';
+
+describe('UserTransformer', () => {
+  const user = {
+    name: 'Alice',
+    email: 'alice@example.com',
+    role: 'Admin'
+  };
+
+  it('should return name by default', () => {
+    const transformer = new UserTransformer(user);
+    const tag = new Lexer('{user}');
+    
+    expect(transformer.transform(tag)).toBe('Alice');
+  });
+
+  it('should return email with .email parameter', () => {
+    const transformer = new UserTransformer(user);
+    const tag = new Lexer('{user.email}');
+    
+    expect(transformer.transform(tag)).toBe('alice@example.com');
+  });
+
+  it('should return null for invalid parameter', () => {
+    const transformer = new UserTransformer(user);
+    const tag = new Lexer('{user.invalid}');
+    
+    expect(transformer.transform(tag)).toBeNull();
+  });
+});
+```
+
+## Common Use Cases
+
+### User Context
+
+```typescript
+const result = await ts.run(
+  'Hello {user.name}! Your role is {user.role}.',
+  {
+    user: new UserTransformer({ name: 'Bob', role: 'Member' })
+  }
+);
+```
+
+### Configuration Values
+
+```typescript
+const result = await ts.run(
+  'API: {config.apiUrl}, Version: {config.version}',
+  {
+    config: new ConfigTransformer({ apiUrl: 'https://api.example.com', version: '1.0' })
+  }
+);
+```
+
+### Dynamic Counters
+
+```typescript
+const result = await ts.run(
+  'Visit #{visits.++}. Thanks for coming back!',
+  {
+    visits: new IntegerTransformer('5')
+  }
+);
+```
+
+### Formatted Dates
+
+```typescript
+const result = await ts.run(
+  'Date: {today.date}, Time: {today.time}',
+  {
+    today: new DateTransformer(new Date())
+  }
+);
+```
+
+## Next Steps
+
+- Learn about [Parsers](/core/parsers) for handling complex tag logic
+- Explore [built-in transformers](/transformers/overview) for examples
+- Read the [Interpreter documentation](/core/interpreter) to understand how transformers are processed

@@ -1,0 +1,221 @@
+---
+title: UrlEncodedParser
+description: URL encoding and decoding parsers for safe URL formatting
+---
+
+# UrlEncodedParser
+
+URL encoding parsers convert strings to and from URL-safe formats, replacing special characters with percent-encoded equivalents.
+
+## UrlEncodeParser
+
+This parser encodes a string into a properly formatted URL with non-URL compliant characters replaced.
+
+### Usage
+
+```typescript
+import { Interpreter, UrlEncodeParser } from 'tagscript';
+const ts = new Interpreter(new UrlEncodeParser());
+```
+
+### Syntax
+
+```yaml
+{urlencode:text}
+{urlencode(+):text}
+{encodeuri:text}
+```
+
+<ParamField path="text" type="string" required>
+  The text to URL encode
+</ParamField>
+
+<ParamField path="+" type="string" optional>
+  If set to `+`, replaces spaces with `+` instead of `%20`
+</ParamField>
+
+### Examples
+
+#### Basic Encoding
+
+```yaml
+{urlencode:Hello World}
+# Hello%20World
+```
+
+#### Encode with Plus
+
+```yaml
+{urlencode(+):Hello World}
+# Hello+World
+```
+
+#### Special Characters
+
+```yaml
+{urlencode:user@example.com}
+# user@example.com (@ is not encoded by encodeURI)
+```
+
+#### Complex URL
+
+```yaml
+{urlencode:Hello World & Special Characters!}
+# Hello%20World%20&%20Special%20Characters!
+```
+
+### Aliases
+
+- `urlencode`
+- `encodeuri`
+
+## UrlDecodeParser
+
+This parser decodes a URL-encoded string back to its original format.
+
+### Usage
+
+```typescript
+import { Interpreter, UrlDecodeParser } from 'tagscript';
+const ts = new Interpreter(new UrlDecodeParser());
+```
+
+### Syntax
+
+```yaml
+{urldecode:encoded_text}
+{urldecode(+):encoded_text}
+```
+
+<ParamField path="encoded_text" type="string" required>
+  The URL-encoded text to decode
+</ParamField>
+
+<ParamField path="+" type="string" optional>
+  If set to `+`, replaces `+` with spaces before decoding
+</ParamField>
+
+### Examples
+
+#### Basic Decoding
+
+```yaml
+{urldecode:Hello%20World}
+# Hello World
+```
+
+#### Decode with Plus
+
+```yaml
+{urldecode(+):Hello+World}
+# Hello World
+```
+
+#### Complex URL
+
+```yaml
+{urldecode:Hello%20World%20%26%20Special%20Characters%21}
+# Hello World & Special Characters!
+```
+
+## Return Values
+
+<ResponseField name="urlencode" type="string">
+  Returns the URL-encoded version of the input text
+</ResponseField>
+
+<ResponseField name="urldecode" type="string">
+  Returns the decoded version of the URL-encoded input
+</ResponseField>
+
+## Implementation Details
+
+### UrlEncodeParser
+
+```typescript
+return ctx.tag.parameter === '+' 
+  ? encodeURI(ctx.tag.payload!.replaceAll(/ +/g, ctx.tag.parameter)) 
+  : encodeURI(ctx.tag.payload!);
+```
+
+### UrlDecodeParser
+
+```typescript
+return ctx.tag.parameter === '+' 
+  ? decodeURI(ctx.tag.payload!.replaceAll(ctx.tag.parameter, ' ')) 
+  : decodeURI(ctx.tag.payload!);
+```
+
+## Use Cases
+
+### URL Encoding
+- Build API request URLs with query parameters
+- Create safe search URLs
+- Encode user input for URL parameters
+- Generate shareable links
+
+### URL Decoding
+- Parse query parameters from URLs
+- Display user-friendly versions of encoded URLs
+- Process webhook data
+- Read encoded form data
+
+## Practical Examples
+
+### Search URL
+
+```yaml
+https://example.com/search?q={urlencode:{query}}
+# If query = "hello world"
+# https://example.com/search?q=Hello%20World
+```
+
+### API Request
+
+```yaml
+https://api.example.com/users?name={urlencode:{user.name}}&email={urlencode:{user.email}}
+# Safely encodes user data for API calls
+```
+
+### Form Submission
+
+```yaml
+{urlencode(+):First Name}: {urlencode(+):{firstName}}
+# First+Name: John+Doe
+```
+
+### Parse Query String
+
+```yaml
+Search term: {urldecode:{query_param}}
+# If query_param = "Hello%20World"
+# Search term: Hello World
+```
+
+## Notes
+
+- Uses JavaScript's `encodeURI()` and `decodeURI()` functions
+- `encodeURI()` preserves special URI characters like `:`, `/`, `?`, `#`
+- Use parameter `+` to handle plus-encoded spaces (common in form data)
+- Does **not** encode characters like `@`, `#`, `&` that are valid in URIs
+- For encoding **all** special characters (like for query params), you may need additional processing
+- The `+` parameter affects how spaces are handled:
+  - **Encode with `+`**: Spaces become `+` instead of `%20`
+  - **Decode with `+`**: `+` characters become spaces
+
+## Character Encoding Reference
+
+Common characters that get encoded:
+
+| Character | Encoded |
+|-----------|--------|
+| Space | `%20` or `+` (with parameter) |
+| `!` | `%21` |
+| `"` | `%22` |
+| `%` | `%25` |
+| `<` | `%3C` |
+| `>` | `%3E` |
+| `[` | `%5B` |
+| `]` | `%5D` |
+| `{` | `%7B` |
+| `}` | `%7D` |

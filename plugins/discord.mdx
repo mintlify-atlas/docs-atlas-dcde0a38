@@ -1,0 +1,659 @@
+---
+title: Discord Plugin
+description: Complete guide to the @tagscript/plugin-discord package
+---
+
+# @tagscript/plugin-discord
+
+A comprehensive TagScript plugin for Discord.js that provides parsers and transformers for working with Discord objects in your tags.
+
+## Installation
+
+`@tagscript/plugin-discord` requires both `tagscript` and `discord.js` as peer dependencies.
+
+```package-install
+@tagscript/plugin-discord
+```
+
+<Callout type="warn">
+**Peer Dependencies Required**
+
+Make sure you also have `tagscript` and `discord.js` (v14.0.0+) installed:
+
+```bash
+npm install tagscript discord.js
+```
+</Callout>
+
+## Features
+
+- **7 Transformers** for Discord objects (User, GuildMember, Guild, Role, Channel, Interaction)
+- **7 Parsers** for Discord-specific functionality (Embed, Files, Format, Silent, Delete, Cooldown, Allow/Deny)
+- Full TypeScript support with type definitions
+- Works with both ESM and CommonJS
+
+## Quick Start
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, StrictVarsParser } from 'tagscript';
+import { MemberTransformer, EmbedParser } from '@tagscript/plugin-discord';
+import type { GuildMember } from 'discord.js';
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser()
+);
+
+// In your Discord bot command handler
+const member: GuildMember = interaction.member as GuildMember;
+const result = await ts.run(
+  'Hi {member.username}! {embed(title): Welcome} {embed(description): You joined at {member.joinedAt}}',
+  { member: new MemberTransformer(member) }
+);
+
+console.log(result.body); // "Hi Username!"
+console.log(result.actions.embed); // { title: "Welcome", description: "You joined at..." }
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, StrictVarsParser } = require('tagscript');
+const { MemberTransformer, EmbedParser } = require('@tagscript/plugin-discord');
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser()
+);
+
+// In your Discord bot command handler
+const member = interaction.member;
+const result = await ts.run(
+  'Hi {member.username}! {embed(title): Welcome} {embed(description): You joined at {member.joinedAt}}',
+  { member: new MemberTransformer(member) }
+);
+
+console.log(result.body); // "Hi Username!"
+console.log(result.actions.embed); // { title: "Welcome", description: "You joined at..." }
+```
+</Tabs>
+
+## Transformers
+
+Transformers convert Discord.js objects into safe, template-ready data structures.
+
+### MemberTransformer
+
+Transforms a Discord `GuildMember` object.
+
+**Available Properties:**
+
+```yaml
+id: Member's user ID
+mention: Mentions the member (<@123456789>)
+username: Username of the member
+discriminator: User discriminator (deprecated in Discord)
+tag: username#discriminator
+avatar: Member's custom avatar URL (empty if none)
+displayAvatar: Member's avatar or default avatar URL
+nickname: Server nickname (null if none)
+displayName: Nickname if set, otherwise username
+joinedAt: ISO timestamp of when they joined
+joinedTimestamp: Join date in milliseconds
+createdAt: ISO timestamp of account creation
+createdTimestamp: Account creation in milliseconds
+bot: true if the member is a bot
+color: Hex color of highest role
+position: Position of highest role
+roles: Space-separated role mentions
+roleIds: Comma-separated role IDs
+roleNames: Comma-separated role names
+topRole: Name of highest role
+timeoutUntil: ISO timestamp when timeout ends
+timeoutUntilTimestamp: Timeout end in milliseconds
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { MemberTransformer } from '@tagscript/plugin-discord';
+
+const result = await ts.run(
+  `Welcome {member.mention}!
+  Username: {member.username}
+  Display Name: {member.displayName}
+  Joined: {member.joinedAt}
+  Top Role: {member.topRole}
+  Account Created: {member.createdAt}`,
+  { member: new MemberTransformer(guildMember) }
+);
+```
+
+### UserTransformer
+
+Transforms a Discord `User` object.
+
+**Available Properties:**
+
+```yaml
+id: User's ID
+mention: Mentions the user (<@123456789>)
+globalName: User's global display name
+username: Username
+discriminator: User discriminator
+tag: username#discriminator
+avatar: Custom avatar URL (empty if none)
+displayAvatar: Avatar or default avatar URL
+createdAt: ISO timestamp of account creation
+createdTimestamp: Account creation in milliseconds
+bot: true if the user is a bot
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { UserTransformer } from '@tagscript/plugin-discord';
+
+const result = await ts.run(
+  'User: {user.username} ({user.id})',
+  { user: new UserTransformer(message.author) }
+);
+```
+
+### GuildTransformer
+
+Transforms a Discord `Guild` object.
+
+**Available Properties:**
+
+```yaml
+id: Guild ID
+name: Guild name
+mention: Guild name as text
+icon: Guild icon URL
+memberCount: Total member count
+createdAt: ISO timestamp of guild creation
+createdTimestamp: Guild creation in milliseconds
+ownerId: Guild owner's user ID
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { GuildTransformer } from '@tagscript/plugin-discord';
+
+const result = await ts.run(
+  'Server: {guild.name} | Members: {guild.memberCount}',
+  { guild: new GuildTransformer(interaction.guild) }
+);
+```
+
+### RoleTransformer
+
+Transforms a Discord `Role` object.
+
+**Available Properties:**
+
+```yaml
+id: Role ID
+name: Role name
+mention: Role mention (<@&123456789>)
+color: Hex color code
+position: Role position in hierarchy
+createdAt: ISO timestamp of role creation
+createdTimestamp: Role creation in milliseconds
+mentionable: true if role is mentionable
+```
+
+### ChannelTransformer
+
+Transforms a Discord `GuildTextBasedChannel` object.
+
+**Available Properties:**
+
+```yaml
+id: Channel ID
+name: Channel name
+mention: Channel mention (<#123456789>)
+topic: Channel topic
+nsfw: true if NSFW channel
+createdAt: ISO timestamp of channel creation
+createdTimestamp: Channel creation in milliseconds
+```
+
+### InteractionTransformer
+
+Transforms a Discord `CommandInteraction` object.
+
+**Available Properties:**
+
+```yaml
+id: Interaction ID
+commandName: Name of the command
+channelId: Channel ID where interaction occurred
+guildId: Guild ID where interaction occurred
+```
+
+## Parsers
+
+Parsers process tag syntax and control behavior.
+
+### EmbedParser
+
+Creates Discord embeds using tag syntax.
+
+**Usage Patterns:**
+
+**1. JSON Format:**
+
+```yaml
+{embed: {"title": "Hello", "description": "World", "color": 0x3498db}}
+```
+
+**2. Property Format:**
+
+```yaml
+{embed(title): My Title}
+{embed(description): My description}
+{embed(color): 0x3498db}
+{embed(field): Field Name|Field Value|false}
+{embed(footer): Footer text}
+{embed(thumbnail): https://example.com/image.png}
+{embed(image): https://example.com/image.png}
+{embed(author): Author Name}
+{embed(url): https://example.com}
+{embed(timestamp): 2024-01-01T00:00:00Z}
+```
+
+**Complete Example:**
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter } from 'tagscript';
+import { EmbedParser } from '@tagscript/plugin-discord';
+import { EmbedBuilder } from 'discord.js';
+
+const ts = new Interpreter(new EmbedParser());
+
+const result = await ts.run(`
+  {embed(title): Server Rules}
+  {embed(description): Please follow these rules}
+  {embed(color): 0x00ff00}
+  {embed(field): Rule 1|Be respectful|false}
+  {embed(field): Rule 2|No spam|false}
+  {embed(footer): Last updated: 2024}
+`);
+
+// Build the embed
+const embed = new EmbedBuilder(result.actions.embed);
+
+await interaction.reply({ embeds: [embed] });
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter } = require('tagscript');
+const { EmbedParser } = require('@tagscript/plugin-discord');
+const { EmbedBuilder } = require('discord.js');
+
+const ts = new Interpreter(new EmbedParser());
+
+const result = await ts.run(`
+  {embed(title): Server Rules}
+  {embed(description): Please follow these rules}
+  {embed(color): 0x00ff00}
+  {embed(field): Rule 1|Be respectful|false}
+  {embed(field): Rule 2|No spam|false}
+  {embed(footer): Last updated: 2024}
+`);
+
+// Build the embed
+const embed = new EmbedBuilder(result.actions.embed);
+
+await interaction.reply({ embeds: [embed] });
+```
+</Tabs>
+
+<Callout type="warn">
+**EmbedBuilder Integration**
+
+The parser returns raw embed data in `result.actions.embed`. You must pass this to Discord.js `EmbedBuilder` before sending.
+</Callout>
+
+### FilesParser
+
+Attaches files to messages using URLs.
+
+**Syntax:**
+
+```yaml
+{files: url1, url2, url3}
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { FilesParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(new FilesParser());
+
+const result = await ts.run(
+  '{files: https://example.com/image1.png, https://example.com/image2.png}'
+);
+
+console.log(result.actions.files);
+// ['https://example.com/image1.png', 'https://example.com/image2.png']
+
+await interaction.reply({
+  content: 'Here are your files!',
+  files: result.actions.files
+});
+```
+
+### FormatParser
+
+Formats text with Discord markdown styles.
+
+**Syntax:**
+
+```yaml
+{format(style): text}
+```
+
+**Available Styles:**
+- `b` or `bold`: **bold text**
+- `i` or `italic`: *italic text*
+- `u` or `underline`: __underline text__
+- `s` or `strikethrough`: ~~strikethrough~~
+- `code`: `inline code`
+- `codeblock`: ```code block```
+
+**Example:**
+
+```ts showLineNumbers
+import { FormatParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(new FormatParser());
+
+const result = await ts.run(
+  '{format(bold): Important!} {format(code): const x = 1}'
+);
+// Result: "**Important!** `const x = 1`"
+```
+
+### SilentParser
+
+Suppresses command output.
+
+**Syntax:**
+
+```yaml
+{silent}
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { SilentParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(new SilentParser());
+
+const result = await ts.run('{silent} This message processes silently');
+
+if (result.actions.silentResponse) {
+  // Don't send a visible response
+  await interaction.deferUpdate();
+} else {
+  await interaction.reply(result.body);
+}
+```
+
+### DeleteParser
+
+Marks the triggering message for deletion.
+
+**Syntax:**
+
+```yaml
+{delete}
+{del}
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { DeleteParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(new DeleteParser());
+
+const result = await ts.run('{delete} Processing your request...');
+
+if (result.actions.deleteMessage && message.deletable) {
+  await message.delete();
+}
+
+await interaction.reply(result.body);
+```
+
+### CooldownParser
+
+Implements cooldowns for tag usage.
+
+**Syntax:**
+
+```yaml
+{cooldown(duration): message}
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { CooldownParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(new CooldownParser());
+const cooldowns = new Map();
+
+const result = await ts.run(
+  '{cooldown(60): You can use this command again in {cooldown.remaining} seconds}'
+);
+
+if (result.actions.cooldown) {
+  const { duration, message } = result.actions.cooldown;
+  const userId = interaction.user.id;
+  const now = Date.now();
+  
+  if (cooldowns.has(userId)) {
+    const expiresAt = cooldowns.get(userId);
+    if (now < expiresAt) {
+      const remaining = Math.ceil((expiresAt - now) / 1000);
+      return interaction.reply(message.replace('{cooldown.remaining}', remaining));
+    }
+  }
+  
+  cooldowns.set(userId, now + (duration * 1000));
+}
+```
+
+### RequiredParser & DenyParser
+
+Control access to tags based on roles, channels, or users.
+
+**RequiredParser (Allowlist):**
+
+```yaml
+{require(id1, id2, id3): Access denied message}
+{allowlist(id1, id2): Access denied}
+{whitelist(id1, id2): Access denied}
+```
+
+**DenyParser (Blocklist):**
+
+```yaml
+{deny(id1, id2, id3): You are blocked}
+{denylist(id1, id2): You are blocked}
+{blacklist(id1, id2): You are blocked}
+```
+
+**Example:**
+
+```ts showLineNumbers
+import { RequiredParser, DenyParser } from '@tagscript/plugin-discord';
+
+const ts = new Interpreter(
+  new RequiredParser(),
+  new DenyParser()
+);
+
+const result = await ts.run(
+  '{require(moderatorRoleId, adminRoleId): Only moderators can use this!}'
+);
+
+if (result.actions.require) {
+  const { ids, message } = result.actions.require;
+  const memberRoles = interaction.member.roles.cache.map(r => r.id);
+  
+  const hasRequiredRole = ids.some(id => memberRoles.includes(id));
+  if (!hasRequiredRole) {
+    return interaction.reply(message || 'Access denied');
+  }
+}
+
+if (result.actions.deny) {
+  const { ids, message } = result.actions.deny;
+  const memberRoles = interaction.member.roles.cache.map(r => r.id);
+  
+  const hasDeniedRole = ids.some(id => memberRoles.includes(id));
+  if (hasDeniedRole) {
+    return interaction.reply(message || 'You are blocked from using this');
+  }
+}
+
+await interaction.reply(result.body);
+```
+
+## Complete Example
+
+Here's a complete example using multiple parsers and transformers:
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
+import { Interpreter, StrictVarsParser } from 'tagscript';
+import {
+  MemberTransformer,
+  GuildTransformer,
+  EmbedParser,
+  RequiredParser,
+  SilentParser
+} from '@tagscript/plugin-discord';
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+});
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser(),
+  new RequiredParser(),
+  new SilentParser()
+);
+
+const welcomeTemplate = `
+{require(memberRoleId): You must have the Member role!}
+{embed(title): Welcome to {guild.name}!}
+{embed(description): Hi {member.mention}, you're member #{guild.memberCount}!}
+{embed(color): 0x3498db}
+{embed(field): Username|{member.username}|true}
+{embed(field): Join Date|{member.joinedAt}|true}
+{embed(footer): Enjoy your stay!}
+{silent}
+`;
+
+client.on('guildMemberAdd', async (member) => {
+  const result = await ts.run(welcomeTemplate, {
+    member: new MemberTransformer(member),
+    guild: new GuildTransformer(member.guild)
+  });
+
+  // Check access control
+  if (result.actions.require) {
+    const { ids, message } = result.actions.require;
+    const hasRole = ids.some(id => member.roles.cache.has(id));
+    if (!hasRole) {
+      console.log('Member does not have required role');
+      return;
+    }
+  }
+
+  // Send welcome message
+  const welcomeChannel = member.guild.channels.cache.get('channelId');
+  if (welcomeChannel?.isTextBased()) {
+    const embed = new EmbedBuilder(result.actions.embed);
+    await welcomeChannel.send({ embeds: [embed] });
+  }
+});
+
+client.login('your-token-here');
+```
+```js tab="JavaScript" showLineNumbers
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Interpreter, StrictVarsParser } = require('tagscript');
+const {
+  MemberTransformer,
+  GuildTransformer,
+  EmbedParser,
+  RequiredParser,
+  SilentParser
+} = require('@tagscript/plugin-discord');
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+});
+
+const ts = new Interpreter(
+  new StrictVarsParser(),
+  new EmbedParser(),
+  new RequiredParser(),
+  new SilentParser()
+);
+
+const welcomeTemplate = `
+{require(memberRoleId): You must have the Member role!}
+{embed(title): Welcome to {guild.name}!}
+{embed(description): Hi {member.mention}, you're member #{guild.memberCount}!}
+{embed(color): 0x3498db}
+{embed(field): Username|{member.username}|true}
+{embed(field): Join Date|{member.joinedAt}|true}
+{embed(footer): Enjoy your stay!}
+{silent}
+`;
+
+client.on('guildMemberAdd', async (member) => {
+  const result = await ts.run(welcomeTemplate, {
+    member: new MemberTransformer(member),
+    guild: new GuildTransformer(member.guild)
+  });
+
+  // Check access control
+  if (result.actions.require) {
+    const { ids, message } = result.actions.require;
+    const hasRole = ids.some(id => member.roles.cache.has(id));
+    if (!hasRole) {
+      console.log('Member does not have required role');
+      return;
+    }
+  }
+
+  // Send welcome message
+  const welcomeChannel = member.guild.channels.cache.get('channelId');
+  if (welcomeChannel?.isTextBased()) {
+    const embed = new EmbedBuilder(result.actions.embed);
+    await welcomeChannel.send({ embeds: [embed] });
+  }
+});
+
+client.login('your-token-here');
+```
+</Tabs>
+
+## Next Steps
+
+- [Basic Usage Examples](/examples/basic-usage)
+- [Create Custom Parsers](/examples/custom-parsers)
+- [Advanced Patterns](/examples/advanced-patterns)

@@ -1,0 +1,303 @@
+---
+title: Lexer
+description: Lexer class for parsing TagScript tag syntax into structured components
+---
+
+The `Lexer` class is responsible for parsing individual TagScript tags and breaking them down into their constituent parts: declaration (tag name), parameter, and payload.
+
+## Tag Syntax
+
+TagScript tags follow this general syntax:
+
+```
+{declaration.parameter:payload}
+{declaration(parameter):payload}
+```
+
+- **Declaration**: The tag name (e.g., `user`, `if`, `embed`)
+- **Parameter**: Optional modifier using dot notation `.param` or parentheses `(param)`
+- **Payload**: Optional content after the colon `:`
+
+## Constructor
+
+```ts
+constructor(
+  input: string,
+  limit?: number,
+  parenType?: ParenType
+)
+```
+
+<ParamField path="input" type="string" required>
+  The complete tag string to parse, including the surrounding braces (e.g., `"{user.name}"`)
+</ParamField>
+
+<ParamField path="limit" type="number" default="2000">
+  Maximum number of characters to process from the tag. Content beyond this limit is truncated.
+</ParamField>
+
+<ParamField path="parenType" type="ParenType" default="ParenType.Both">
+  Determines which parameter syntax to accept:
+  - `ParenType.Both` - Accepts both `.parameter` and `(parameter)`
+  - `ParenType.Dot` - Only accepts `.parameter` syntax
+  - `ParenType.Parenthesis` - Only accepts `(parameter)` syntax
+</ParamField>
+
+### Example
+
+```ts
+import { Lexer, ParenType } from 'tagscript';
+
+// Parse with default settings (both syntaxes)
+const lexer1 = new Lexer('{user.name}');
+
+// Parse with parenthesis syntax only
+const lexer2 = new Lexer('{user(name)}', 2000, ParenType.Parenthesis);
+
+// Parse with character limit
+const lexer3 = new Lexer('{tag:very long payload}', 10);
+```
+
+## Properties
+
+<ResponseField name="declaration" type="string | null">
+  The tag name/identifier. For `{user.name}`, this would be `"user"`. `null` if no declaration exists.
+</ResponseField>
+
+<ResponseField name="parameter" type="string | null">
+  The parameter specified after the declaration. For `{user.name}`, this would be `"name"`. For `{embed(title)}`, this would be `"title"`. `null` if no parameter exists.
+</ResponseField>
+
+<ResponseField name="payload" type="string | null">
+  The content after the colon separator. For `{user:default}`, this would be `"default"`. `null` if no payload exists.
+</ResponseField>
+
+## Methods
+
+### toString()
+
+Reconstructs the original tag string from the parsed components.
+
+```ts
+toString(): string
+```
+
+<ResponseField name="return" type="string">
+  The reconstructed tag string with proper syntax (braces, delimiters, etc.)
+</ResponseField>
+
+#### Example
+
+```ts
+import { Lexer } from 'tagscript';
+
+const lexer = new Lexer('{embed.title:Hello World}');
+
+console.log(lexer.toString());
+// "{embed.title:Hello World}"
+```
+
+### toJSON()
+
+Serializes the lexer to a plain JavaScript object containing all parsed components.
+
+```ts
+toJSON(): object
+```
+
+<ResponseField name="return" type="object">
+  An object containing:
+  - `declaration` - The tag name
+  - `parameter` - The parameter (if any)
+  - `payload` - The payload (if any)
+  - `usedParenType` - Which parameter syntax was used
+</ResponseField>
+
+#### Example
+
+```ts
+import { Lexer, ParenType } from 'tagscript';
+
+const lexer = new Lexer('{embed.title:Hello World}');
+
+console.log(lexer.toJSON());
+// {
+//   declaration: 'embed',
+//   parameter: 'title',
+//   payload: 'Hello World',
+//   usedParenType: ParenType.Dot
+// }
+```
+
+## ParenType Enum
+
+The `ParenType` enum controls which parameter syntax the lexer accepts:
+
+```ts
+enum ParenType {
+  Parenthesis = 0,
+  Dot = 1,
+  Both = 2
+}
+```
+
+<ResponseField name="ParenType.Parenthesis" type="0">
+  Only accept parenthesis syntax: `{tag(parameter)}`
+</ResponseField>
+
+<ResponseField name="ParenType.Dot" type="1">
+  Only accept dot notation syntax: `{tag.parameter}`
+</ResponseField>
+
+<ResponseField name="ParenType.Both" type="2">
+  Accept both syntaxes (default)
+</ResponseField>
+
+## Part Enum
+
+The `Part` enum defines the special characters used in TagScript syntax:
+
+```ts
+enum Part {
+  colon = ':',
+  comma = ',',
+  dot = '.',
+  escape = '\\',
+  parenEnd = ')',
+  parenStart = '(',
+  pipe = '|',
+  tagEnd = '}',
+  tagStart = '{'
+}
+```
+
+## Usage Examples
+
+### Basic Tag Parsing
+
+```ts
+import { Lexer } from 'tagscript';
+
+const lexer = new Lexer('{user}');
+
+console.log(lexer.declaration); // "user"
+console.log(lexer.parameter);   // null
+console.log(lexer.payload);     // null
+```
+
+### Dot Notation Parameter
+
+```ts
+import { Lexer } from 'tagscript';
+
+const lexer = new Lexer('{user.name}');
+
+console.log(lexer.declaration); // "user"
+console.log(lexer.parameter);   // "name"
+console.log(lexer.payload);     // null
+```
+
+### Parenthesis Parameter
+
+```ts
+import { Lexer } from 'tagscript';
+
+const lexer = new Lexer('{user(name)}');
+
+console.log(lexer.declaration); // "user"
+console.log(lexer.parameter);   // "name"
+console.log(lexer.payload);     // null
+```
+
+### With Payload
+
+```ts
+import { Lexer } from 'tagscript';
+
+const lexer = new Lexer('{user.name:Anonymous}');
+
+console.log(lexer.declaration); // "user"
+console.log(lexer.parameter);   // "name"
+console.log(lexer.payload);     // "Anonymous"
+```
+
+### Nested Parameters
+
+```ts
+import { Lexer } from 'tagscript';
+
+// Nested dot notation
+const lexer1 = new Lexer('{embed.author.name}');
+console.log(lexer1.parameter); // "author.name"
+
+// Nested parentheses
+const lexer2 = new Lexer('{func(arg(nested))}');
+console.log(lexer2.parameter); // "arg(nested)"
+```
+
+### Escaped Characters
+
+```ts
+import { Lexer } from 'tagscript';
+
+// Escape the dot to prevent it being treated as parameter separator
+const lexer = new Lexer('{embed\\.title.description}');
+
+console.log(lexer.declaration); // "embed\\.title"
+console.log(lexer.parameter);   // "description"
+```
+
+### Restricting Parameter Syntax
+
+```ts
+import { Lexer, ParenType } from 'tagscript';
+
+// Only allow dot notation
+const dotLexer = new Lexer('{user.name}', 2000, ParenType.Dot);
+console.log(dotLexer.parameter); // "name"
+
+const invalidDot = new Lexer('{user(name)}', 2000, ParenType.Dot);
+console.log(invalidDot.parameter); // null (not parsed as parameter)
+
+// Only allow parentheses
+const parenLexer = new Lexer('{user(name)}', 2000, ParenType.Parenthesis);
+console.log(parenLexer.parameter); // "name"
+
+const invalidParen = new Lexer('{user.name}', 2000, ParenType.Parenthesis);
+console.log(invalidParen.parameter); // null (not parsed as parameter)
+```
+
+### Complex Payloads
+
+```ts
+import { Lexer } from 'tagscript';
+
+// Payload with colons preserved
+const lexer = new Lexer('{embed.description:Time: 10:30:45}');
+console.log(lexer.payload); // "Time: 10:30:45"
+
+// The first colon is the separator, rest are part of payload
+const lexer2 = new Lexer('{tag:part1:part2:part3}');
+console.log(lexer2.payload); // "part1:part2:part3"
+```
+
+### Working with Character Limits
+
+```ts
+import { Lexer } from 'tagscript';
+
+// Limit processing to 10 characters
+const lexer = new Lexer(
+  '{tag:this is a very long payload}',
+  10
+);
+
+// Only first 10 characters after braces are processed
+console.log(lexer.toJSON());
+```
+
+## See Also
+
+- [Context](/api/context) - Contains the Lexer instance for the current tag
+- [Interpreter](/api/interpreter) - Uses Lexer internally to parse tags
+- [ITransformer](/api/interfaces/transformer) - Receives Lexer instances in transform method

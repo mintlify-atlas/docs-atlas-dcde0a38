@@ -1,0 +1,135 @@
+---
+title: TagScript Parsers Overview
+description: Complete guide to all available TagScript parsers for dynamic content processing
+---
+
+# Parsers
+
+Parsers are the core building blocks of TagScript that process tags and return values based on the tag syntax. You can use built-in parsers or create your own custom parsers.
+
+## Usage
+
+```typescript
+import { Interpreter, RandomParser, RangeParser, FiftyFiftyParser, IfStatementParser, SliceParser } from 'tagscript';
+
+const ts = new Interpreter(
+  new SliceParser(),
+  new FiftyFiftyParser(),
+  new RandomParser(),
+  new IfStatementParser()
+);
+```
+
+## Available Parsers
+
+<CardGroup cols={3}>
+  <Card title="Control Flow" icon="code-branch" href="/parsers/control">
+    If statements, union, and intersection logic
+  </Card>
+  
+  <Card title="Randomization" icon="dice" href="/parsers/random">
+    Random selection from lists
+  </Card>
+  
+  <Card title="Fifty-Fifty" icon="coins" href="/parsers/fifty-fifty">
+    50/50 probability outcomes
+  </Card>
+  
+  <Card title="Range" icon="arrow-up-1-9" href="/parsers/range">
+    Random numbers from ranges
+  </Card>
+  
+  <Card title="Slice" icon="scissors" href="/parsers/slice">
+    Extract substrings from text
+  </Card>
+  
+  <Card title="Replace" icon="pen-to-square" href="/parsers/replace">
+    Replace text within strings
+  </Card>
+  
+  <Card title="Format" icon="text-size" href="/parsers/format">
+    String case formatting and escaping
+  </Card>
+  
+  <Card title="URL Encoding" icon="link" href="/parsers/url-encoded">
+    Encode and decode URLs
+  </Card>
+  
+  <Card title="JSON Variables" icon="brackets-curly" href="/parsers/json-var">
+    Parse and store JSON data
+  </Card>
+  
+  <Card title="Define Variables" icon="equals" href="/parsers/define">
+    Create and assign variables
+  </Card>
+  
+  <Card title="Loose Variables" icon="variable" href="/parsers/loose-vars">
+    Access variables with loose validation
+  </Card>
+  
+  <Card title="Strict Variables" icon="shield-check" href="/parsers/strict-vars">
+    Access variables with strict validation
+  </Card>
+  
+  <Card title="Break" icon="hand" href="/parsers/break">
+    Force tag output based on condition
+  </Card>
+  
+  <Card title="Stop" icon="stop" href="/parsers/stop">
+    Halt tag processing completely
+  </Card>
+  
+  <Card title="Includes" icon="magnifying-glass" href="/parsers/includes">
+    Search and check text inclusion
+  </Card>
+  
+  <Card title="If Statement" icon="question" href="/parsers/if-statement">
+    Conditional logic with operators
+  </Card>
+</CardGroup>
+
+## Custom Parsers
+
+You can create custom parsers by implementing the `IParser` interface:
+
+```typescript
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+export class FetchParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['fetch'], false, true);
+  }
+
+  public parse(ctx: Context) {
+    return fetch(ctx.tag.payload!.trim()).then((res) => res.text());
+  }
+}
+```
+
+## Parser Categories
+
+### Control Flow
+- [IfStatementParser](/parsers/if-statement) - Conditional logic with comparison operators
+- [ControlParser](/parsers/control) - Union and intersection statement parsing
+- [BreakParser](/parsers/break) - Force specific output based on conditions
+- [StopParser](/parsers/stop) - Halt all processing
+
+### Randomization
+- [RandomParser](/parsers/random) - Select random items from lists
+- [FiftyFiftyParser](/parsers/fifty-fifty) - 50/50 probability outcomes
+- [RangeParser](/parsers/range) - Generate random numbers in ranges
+
+### String Manipulation
+- [SliceParser](/parsers/slice) - Extract substrings
+- [ReplaceParser](/parsers/replace) - Replace text patterns
+- [FormatParser](/parsers/format) - Format text case and escape characters
+- [UrlEncodedParser](/parsers/url-encoded) - URL encoding/decoding
+
+### Variables & Data
+- [DefineParser](/parsers/define) - Define custom variables
+- [LooseVarsParser](/parsers/loose-vars) - Access variables with loose checking
+- [StrictVarsParser](/parsers/strict-vars) - Access variables with strict checking
+- [JSONVarParser](/parsers/json-var) - Parse and store JSON data
+
+### Utilities
+- [IncludesParser](/parsers/includes) - Check text inclusion and find indices

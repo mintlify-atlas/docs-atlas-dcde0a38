@@ -1,0 +1,171 @@
+---
+title: JSONVarParser
+description: Parser for storing and accessing JSON data as variables
+---
+
+# JSONVarParser
+
+The JSON parser is useful when working with JSON data from APIs or other sources. It parses JSON objects and stores them as variables, allowing you to access properties using dot notation.
+
+## Usage
+
+```typescript
+import { Interpreter, JSONVarParser } from 'tagscript';
+const ts = new Interpreter(new JSONVarParser());
+```
+
+## Syntax
+
+```yaml
+{json(variable_name):json_data}
+```
+
+<ParamField path="variable_name" type="string" required>
+  The name of the variable to store the parsed JSON data
+</ParamField>
+
+<ParamField path="json_data" type="string" required>
+  Valid JSON string to parse and store
+</ParamField>
+
+## Examples
+
+### Basic JSON Storage
+
+```yaml
+{json(data):{"name": "John Doe", "age": 30}}
+Your age is {data.age}.
+# Your age is 30.
+```
+
+### Nested JSON Objects
+
+```yaml
+{json(user):{"name": "Alice", "profile": {"role": "Admin", "level": 5}}}
+Welcome {user.name}, you are a {user.profile.role} at level {user.profile.level}.
+# Welcome Alice, you are a Admin at level 5.
+```
+
+### JSON Arrays
+
+```yaml
+{json(colors):{"items": ["red", "blue", "green"]}}
+First color: {colors.items.0}
+# First color: red
+```
+
+### API Response
+
+```yaml
+{json(response):{"success": true, "message": "Operation completed", "code": 200}}
+Status: {if({response.success}==true):Success|Failed}
+Message: {response.message}
+# Status: Success
+# Message: Operation completed
+```
+
+### User Data
+
+```yaml
+{json(profile):{"username": "johndoe", "email": "john@example.com", "verified": true}}
+Email: {profile.email}
+Verified: {profile.verified}
+# Email: john@example.com
+# Verified: true
+```
+
+### Multiple JSON Variables
+
+```yaml
+{json(settings):{"theme": "dark", "notifications": true}}
+{json(stats):{"points": 1500, "rank": "Gold"}}
+Theme: {settings.theme}
+Points: {stats.points}
+# Theme: dark
+# Points: 1500
+```
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns an empty string. The parsed JSON is stored as a variable accessible via the variable name.
+</ResponseField>
+
+## Implementation Details
+
+The parser uses `SafeObjectTransformer` to store the JSON data:
+
+```typescript
+ctx.response.variables[ctx.tag.parameter!] = new SafeObjectTransformer(ctx.tag.payload!);
+return '';
+```
+
+## Accessing JSON Properties
+
+Once stored, access JSON properties using dot notation:
+
+```yaml
+{json(data):{"user": {"name": "Alice", "age": 25}}}
+
+{data.user.name}        # Alice
+{data.user.age}         # 25
+{data.user}             # [object Object]
+```
+
+## Use Cases
+
+- **API Integration**: Store and access API response data
+- **Configuration**: Store complex configuration objects
+- **User Profiles**: Manage user data with multiple fields
+- **Dynamic Content**: Create content based on structured data
+- **Data Transformation**: Parse JSON from external sources
+- **State Management**: Store application state in tags
+
+## Working with Fetch
+
+Combine with a custom fetch parser:
+
+```yaml
+{json(weather):{fetch:https://api.example.com/weather}}
+Temperature: {weather.temp}°C
+Condition: {weather.condition}
+```
+
+## Notes
+
+- The JSON data must be valid JSON format
+- The parser returns an empty string (the variable is stored internally)
+- Access properties using dot notation: `{variable.property}`
+- Nested objects can be accessed: `{variable.nested.property}`
+- Array elements can be accessed by index: `{variable.array.0}`
+- Use with [LooseVarsParser](/parsers/loose-vars) or [StrictVarsParser](/parsers/strict-vars) to access the stored variables
+- Invalid JSON will cause parsing errors
+- The `SafeObjectTransformer` ensures safe access to object properties
+
+## Complex Example
+
+```yaml
+{json(order):{
+  "id": "12345",
+  "customer": {
+    "name": "John Smith",
+    "email": "john@example.com"
+  },
+  "items": [
+    {"product": "Widget", "quantity": 2, "price": 19.99},
+    {"product": "Gadget", "quantity": 1, "price": 49.99}
+  ],
+  "total": 89.97
+}}
+
+Order #{order.id}
+Customer: {order.customer.name}
+First Item: {order.items.0.product} (Qty: {order.items.0.quantity})
+Total: ${order.total}
+
+# Output:
+# Order #12345
+# Customer: John Smith
+# First Item: Widget (Qty: 2)
+# Total: $89.97
+```

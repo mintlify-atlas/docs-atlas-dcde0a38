@@ -1,0 +1,133 @@
+---
+title: Control Parsers
+description: Union and intersection statement parsers for complex conditional logic
+---
+
+# Control Parsers
+
+Control parsers provide advanced conditional logic beyond simple if statements, allowing you to check multiple conditions with union (OR) and intersection (AND) logic.
+
+## UnionStatementParser
+
+The union parser checks that **any** of the passed expressions are true. Multiple expressions can be passed to the parameter by splitting them with pipe (`|`).
+
+### Usage
+
+```typescript
+import { Interpreter, UnionStatementParser } from 'tagscript';
+const ts = new Interpreter(new UnionStatementParser());
+```
+
+### Syntax
+
+```yaml
+{any(expression|expression|...):true_message|false_message}
+{or(expression|expression|...):true_message|false_message}
+{union(expression|expression|...):true_message|false_message}
+```
+
+<ParamField path="expression" type="string" required>
+  One or more expressions separated by `|`. Each expression uses comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`)
+</ParamField>
+
+<ParamField path="true_message" type="string" required>
+  Message returned if any expression is true
+</ParamField>
+
+<ParamField path="false_message" type="string" required>
+  Message returned if all expressions are false
+</ParamField>
+
+### Examples
+
+```yaml
+{any({args}==hi|{args}==hello|{args}==hey):Hello {user}!|How rude.}
+# if {args} is "hi", "hello", or "hey"
+Hello Mr. Priyansh#2063!
+# if {args} is anything else
+How rude.
+```
+
+```yaml
+{or({count}==0|{count}>100):Invalid count|Count is valid}
+# if count is 0 or greater than 100
+Invalid count
+# if count is between 1 and 100
+Count is valid
+```
+
+### Aliases
+
+- `any`
+- `or`
+- `union`
+
+## IntersectionStatementParser
+
+The intersection parser checks that **all** of the passed expressions are true. Multiple expressions can be passed to the parameter by splitting them with pipe (`|`).
+
+### Usage
+
+```typescript
+import { Interpreter, IntersectionStatementParser } from 'tagscript';
+const ts = new Interpreter(new IntersectionStatementParser());
+```
+
+### Syntax
+
+```yaml
+{all(expression|expression|...):true_message|false_message}
+{and(expression|expression|...):true_message|false_message}
+{intersection(expression|expression|...):true_message|false_message}
+```
+
+<ParamField path="expression" type="string" required>
+  One or more expressions separated by `|`. Each expression uses comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`)
+</ParamField>
+
+<ParamField path="true_message" type="string" required>
+  Message returned if all expressions are true
+</ParamField>
+
+<ParamField path="false_message" type="string" required>
+  Message returned if any expression is false
+</ParamField>
+
+### Examples
+
+```yaml
+{all({args}>=100|{args}<=1000):You picked {args}.|You must provide a number between 100 and 1000.}
+# if {args} is 52
+You must provide a number between 100 and 1000.
+# if {args} is 282
+You picked 282.
+```
+
+```yaml
+{and({age}>=18|{verified}==true):Access granted|Access denied}
+# Only grants access if age is 18+ AND verified is true
+```
+
+### Aliases
+
+- `all`
+- `and`
+- `intersection`
+
+## Operators
+
+Both parsers support the same comparison operators:
+
+| Operator | Check | Example | Description |
+|----------|-------|---------|-------------|
+| == | equality | `a==a` | value 1 is equal to value 2 |
+| != | inequality | `a!=b` | value 1 is not equal to value 2 |
+| > | greater than | `5>3` | value 1 is greater than value 2 |
+| &lt; | less than | `4<8` | value 1 is less than value 2 |
+| >= | greater than or equality | `10>=10` | value 1 is greater than or equal to value 2 |
+| &lt;= | less than or equality | `5<=6` | value 1 is less than or equal to value 2 |
+
+## Return Values
+
+- **UnionStatementParser**: Returns the first part of the payload (before `|`) if **any** expression is true, otherwise returns the second part
+- **IntersectionStatementParser**: Returns the first part of the payload (before `|`) if **all** expressions are true, otherwise returns the second part

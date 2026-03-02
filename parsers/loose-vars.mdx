@@ -1,0 +1,200 @@
+---
+title: LooseVarsParser
+description: Variable parser with loose validation during parsing
+---
+
+# LooseVarsParser
+
+The loose variable parser represents the transformer for any seeded or defined variables. This variable implementation is considered "loose" since it checks whether the variable is valid during **parsing**, rather than `willAccept`. This means it will accept any tag syntax and check validity during execution.
+
+## Usage
+
+```typescript
+import { Interpreter, LooseVarsParser, DefineParser } from 'tagscript';
+const ts = new Interpreter(new DefineParser(), new LooseVarsParser());
+```
+
+## Syntax
+
+```yaml
+{variable_name}
+{variable.property}
+```
+
+<ParamField path="variable_name" type="string" required>
+  The name of a previously defined variable
+</ParamField>
+
+## Examples
+
+### Basic Variable Access
+
+```yaml
+{=(var):This is my variable.}
+{var}
+# This is my variable.
+```
+
+### Multiple Variables
+
+```yaml
+{=(name):John}
+{=(age):25}
+Hello {name}, you are {age} years old.
+# Hello John, you are 25 years old.
+```
+
+### Seeded Variables
+
+```typescript
+const ts = new Interpreter(new LooseVarsParser());
+const result = await ts.run('{user} has {points} points', {
+  user: new StringTransformer('Alice'),
+  points: new StringTransformer('1500')
+});
+// Alice has 1500 points
+```
+
+### Accessing Undefined Variables
+
+```yaml
+{undefined_var}
+# Returns null (handled gracefully)
+```
+
+### With JSON Variables
+
+```yaml
+{json(data):{"name": "Bob", "score": 100}}
+Player: {data.name}
+Score: {data.score}
+# Player: Bob
+# Score: 100
+```
+
+## Return Value
+
+<ResponseField name="return" type="string | null">
+  Returns the variable's transformed value if it exists, or `null` if the variable is not found.
+</ResponseField>
+
+## Implementation Details
+
+```typescript
+public willAccept() {
+  return true;  // Accepts all tags
+}
+
+public parse(ctx: Context) {
+  const declaration = ctx.tag.declaration!;
+  if (declaration in ctx.response.variables) 
+    return ctx.response.variables[declaration].transform(ctx.tag);
+  return null;
+}
+```
+
+## Loose vs Strict Variables
+
+| Feature | LooseVarsParser | StrictVarsParser |
+|---------|----------------|------------------|
+| Validation | During parsing | During `willAccept` |
+| Undefined vars | Returns `null` | Not parsed at all |
+| Performance | Slightly slower | Slightly faster |
+| Use case | More forgiving | More strict |
+
+## Use Cases
+
+- **Dynamic Content**: Access variables that may or may not exist
+- **User Input**: Reference variables from user-provided data
+- **Conditional Variables**: Variables that might be defined conditionally
+- **Development**: More forgiving during testing and development
+- **Fallback Handling**: Can check if variable exists and provide fallbacks
+
+## Working with DefineParser
+
+The most common use is with [DefineParser](/parsers/define):
+
+```yaml
+{=(prefix):!}
+{=(botname):MyBot}
+The prefix for {botname} is {prefix}
+# The prefix for MyBot is !
+```
+
+## Variable Scoping
+
+```yaml
+{=(global):Available everywhere}
+
+{if({condition}==true):{=(local):Only in this branch}|Nothing}
+
+{global}  # Works
+{local}   # May or may not work depending on condition
+```
+
+## Transformers
+
+Variables can use different transformers:
+
+```typescript
+import { StringTransformer, SafeObjectTransformer } from 'tagscript';
+
+// String variable
+ctx.response.variables['name'] = new StringTransformer('Alice');
+
+// Object variable (from JSON)
+ctx.response.variables['data'] = new SafeObjectTransformer('{"key":"value"}');
+```
+
+## Notes
+
+- **Always accepts**: `willAccept()` always returns `true`
+- **Runtime validation**: Checks if variable exists during parsing
+- **Null on missing**: Returns `null` if variable doesn't exist
+- **No errors**: Won't throw errors for undefined variables
+- **Order matters**: Variables must be defined before use
+- **Case-sensitive**: Variable names are case-sensitive
+
+## Comparison Example
+
+```yaml
+# With LooseVarsParser
+{undefined_var}  # Returns null, continues parsing
+
+# With StrictVarsParser  
+{undefined_var}  # Not parsed, left as literal text
+```
+
+## Best Practices
+
+1. **Define before use**: Always define variables before referencing them
+
+```yaml
+{=(name):John}
+Hello {name}!  # ✓ Good
+```
+
+2. **Check existence**: Use conditional logic for optional variables
+
+```yaml
+{if({optional_var}!=):Value is {optional_var}|No value set}
+```
+
+3. **Seed variables**: Pre-populate common variables when creating the interpreter
+
+```typescript
+const result = await ts.run(template, {
+  user: new StringTransformer('Alice'),
+  server: new StringTransformer('Main Server')
+});
+```
+
+4. **Use with other parsers**: Combine with DefineParser and JSONVarParser for full functionality
+
+```typescript
+const ts = new Interpreter(
+  new DefineParser(),
+  new JSONVarParser(),
+  new LooseVarsParser()
+);
+```

@@ -1,0 +1,131 @@
+---
+title: "Introduction to TagScript"
+description: "A simple and safe template engine for JavaScript and TypeScript that lets users customize text with interactive tags"
+---
+
+## What is TagScript?
+
+TagScript is a drop-in, easy-to-use string interpreter that lets you provide users with ways of customizing their profiles or chat rooms with interactive text. It's a powerful template engine that processes special tags in strings and transforms them into dynamic content.
+
+Think of it as a safe, user-facing scripting language where users can write templates like:
+
+```typescript
+{random:Alice,Bob,Charlie} won the game!
+I pick {if({5050:.}!=):heads|tails}
+```
+
+And TagScript will process these tags to generate dynamic output.
+
+## Why TagScript?
+
+TagScript was designed to solve a common problem: letting users customize text content without giving them access to dangerous operations or exposing your application to security risks.
+
+<CardGroup cols={2}>
+  <Card title="Safe by Design" icon="shield-check">
+    No access to system resources or dangerous operations. TagScript only processes predefined tags and transformations.
+  </Card>
+  
+  <Card title="User-Friendly Syntax" icon="wand-magic-sparkles">
+    Simple bracket-based syntax that's easy for end users to learn and write without programming knowledge.
+  </Card>
+  
+  <Card title="Blazingly Fast" icon="bolt">
+    Written in TypeScript with performance in mind. Process thousands of tags without breaking a sweat.
+  </Card>
+  
+  <Card title="Highly Extensible" icon="puzzle-piece">
+    Create custom parsers and transformers to add your own functionality. Built-in plugin system for common use cases.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Full TypeScript Support" icon="code">
+    Written entirely in TypeScript with comprehensive type definitions. Get full IntelliSense and type safety in your IDE.
+    
+    Offers CJS, ESM, and UMD builds so you can use TagScript in any JavaScript environment.
+  </Accordion>
+  
+  <Accordion title="Powerful Built-in Parsers" icon="toolbox">
+    TagScript comes with 15+ built-in parsers for common use cases:
+    
+    - **Control flow**: `{if}`, `{any}`, `{all}` for conditional logic
+    - **Randomization**: `{random}`, `{range}`, `{5050}` for random content
+    - **Variables**: `{=}`, `{var}` for storing and reusing values
+    - **String manipulation**: `{slice}`, `{replace}`, `{format}` for text processing
+    - And many more!
+  </Accordion>
+  
+  <Accordion title="Transformer System" icon="gears">
+    Transformers let you pass dynamic data into your templates and transform it based on tag parameters.
+    
+    Pass user data, API responses, or any dynamic content as transformers, and let users reference and manipulate it safely.
+  </Accordion>
+  
+  <Accordion title="Plugin Ecosystem" icon="plug">
+    Extend TagScript with plugins for specific use cases. The `@tagscript/plugin-discord` package adds Discord-specific functionality like embed builders.
+    
+    Create your own plugins to add domain-specific features.
+  </Accordion>
+</AccordionGroup>
+
+## Quick Example
+
+Here's a taste of what TagScript can do:
+
+```typescript
+import { Interpreter, RandomParser, IfStatementParser, FiftyFiftyParser } from 'tagscript';
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser(),
+  new FiftyFiftyParser()
+);
+
+const template = `
+  {random:Parbez,Rkn,Priyansh} attempts to pick the lock!
+  I pick {if({5050:.}!=):heads|tails}
+`;
+
+const result = await ts.run(template);
+console.log(result.body);
+// Output: "Parbez attempts to pick the lock! I pick heads"
+// or: "Rkn attempts to pick the lock! I pick tails"
+```
+
+## Common Use Cases
+
+TagScript is perfect for:
+
+- **Discord bots** - Custom commands, welcome messages, and auto-responses
+- **Chat applications** - User-customizable messages and profiles
+- **Content management** - Template-based content generation
+- **Game servers** - Dynamic announcements and player-facing scripting
+- **Custom commands** - Let users create their own command responses
+
+## Next Steps
+
+Ready to get started? Follow these guides:
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install TagScript in your project
+  </Card>
+  
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Build your first TagScript application
+  </Card>
+  
+  <Card title="Core Concepts" icon="book" href="/core/tag-syntax">
+    Learn the fundamentals of TagScript
+  </Card>
+  
+  <Card title="Built-in Parsers" icon="list" href="/parsers/overview">
+    Explore all available parsers
+  </Card>
+</CardGroup>
+
+<Note>
+  TagScript is inspired by [JonSnowbd's TagScript implementation in Python](https://github.com/JonSnowbd/TagScript). This JavaScript/TypeScript version brings the same powerful concepts to the Node.js ecosystem.
+</Note>

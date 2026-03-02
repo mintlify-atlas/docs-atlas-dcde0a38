@@ -1,0 +1,253 @@
+---
+title: Context
+description: Context object containing data about the current TagScript tag being processed
+---
+
+The `Context` class represents the execution context for a single TagScript tag. It is passed to parsers and transformers during the interpretation process, providing access to the tag being parsed, the interpreter instance, and the current response state.
+
+## Constructor
+
+```ts
+constructor(
+  tag: Lexer,
+  response: Response,
+  interpreter: Interpreter,
+  originalMessage: string
+)
+```
+
+<ParamField path="tag" type="Lexer" required>
+  The Lexer instance representing the parsed tag structure.
+</ParamField>
+
+<ParamField path="response" type="Response" required>
+  The Response object that accumulates variables and actions during processing.
+</ParamField>
+
+<ParamField path="interpreter" type="Interpreter" required>
+  The Interpreter instance processing the TagScript.
+</ParamField>
+
+<ParamField path="originalMessage" type="string" required>
+  The original unmodified message passed to the interpreter.
+</ParamField>
+
+### Example
+
+```ts
+import { Context, Lexer, Interpreter, Response } from 'tagscript';
+
+const lexer = new Lexer('{user}');
+const interpreter = new Interpreter();
+const response = new Response();
+
+const context = new Context(
+  lexer,
+  response,
+  interpreter,
+  'Hello {user}!'
+);
+```
+
+## Properties
+
+<ResponseField name="tag" type="Lexer">
+  The tag object representing a TagScript tag. Contains the parsed components:
+  - `declaration` - The tag name
+  - `parameter` - The parameter (if any)
+  - `payload` - The payload/content (if any)
+</ResponseField>
+
+<ResponseField name="response" type="Response">
+  The Response object being built during interpretation. Contains:
+  - `variables` - All variables available during processing
+  - `actions` - Actions set by parsers
+  - `keyValues` - Additional key-value pairs
+</ResponseField>
+
+<ResponseField name="interpreter" type="Interpreter">
+  The Interpreter instance parsing the TagScript. Can be used to access registered parsers or perform nested parsing.
+</ResponseField>
+
+<ResponseField name="originalMessage" type="string">
+  The original message passed to the interpreter before any processing occurred.
+</ResponseField>
+
+## Methods
+
+### toJSON()
+
+Serializes the context object to a plain JavaScript object.
+
+```ts
+toJSON(): object
+```
+
+<ResponseField name="return" type="object">
+  An object containing all context properties:
+  - `tag` - The Lexer instance
+  - `originalMessage` - The original message string
+  - `interpreter` - The Interpreter instance
+  - `response` - The Response object
+</ResponseField>
+
+#### Example
+
+```ts
+import { Context, Lexer, Interpreter, Response } from 'tagscript';
+
+const context = new Context(
+  new Lexer('{user}'),
+  new Response(),
+  new Interpreter(),
+  'Hello {user}!'
+);
+
+const json = context.toJSON();
+console.log(json);
+// {
+//   tag: Lexer { ... },
+//   originalMessage: 'Hello {user}!',
+//   interpreter: Interpreter { ... },
+//   response: Response { ... }
+// }
+```
+
+## Usage in Custom Parsers
+
+The Context object is the primary way parsers interact with the interpreter and access tag information.
+
+### Accessing Tag Information
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class CustomParser extends BaseParser {
+  public async parse(ctx: Context) {
+    // Access tag components
+    const tagName = ctx.tag.declaration; // e.g., "user"
+    const parameter = ctx.tag.parameter; // e.g., "name"
+    const payload = ctx.tag.payload; // e.g., "default value"
+    
+    // Your parsing logic here
+    return `Parsed: ${tagName}`;
+  }
+}
+```
+
+### Accessing Variables
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class VariableParser extends BaseParser {
+  public async parse(ctx: Context) {
+    const varName = ctx.tag.declaration;
+    
+    // Check if variable exists
+    if (varName && ctx.response.variables[varName]) {
+      const transformer = ctx.response.variables[varName];
+      return transformer.transform(ctx.tag);
+    }
+    
+    return null;
+  }
+}
+```
+
+### Setting Actions
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class ActionParser extends BaseParser {
+  public async parse(ctx: Context) {
+    // Set actions that can be accessed after parsing
+    ctx.response.actions.customAction = {
+      data: 'some value'
+    };
+    
+    return 'Action set!';
+  }
+}
+```
+
+### Checking Original Message
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class MessageParser extends BaseParser {
+  public async parse(ctx: Context) {
+    // Access the original unprocessed message
+    const originalLength = ctx.originalMessage.length;
+    
+    return `Original message was ${originalLength} characters`;
+  }
+}
+```
+
+### Using KeyValues
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+// First, extend IKeyValues interface
+declare module 'tagscript' {
+  interface IKeyValues {
+    userId?: string;
+    guildId?: string;
+  }
+}
+
+class KeyValueParser extends BaseParser {
+  public async parse(ctx: Context) {
+    // Access custom key-values passed to interpreter
+    const userId = ctx.response.keyValues.userId;
+    const guildId = ctx.response.keyValues.guildId;
+    
+    return `User ${userId} in guild ${guildId}`;
+  }
+}
+```
+
+## Complete Parser Example
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class EchoParser extends BaseParser {
+  constructor() {
+    super(
+      ['echo'], // accepted tag names
+      false,    // parameter not required
+      true      // payload required
+    );
+  }
+  
+  public async parse(ctx: Context): Promise<string | null> {
+    // ctx.tag contains the parsed tag
+    const payload = ctx.tag.payload;
+    
+    // Access variables if needed
+    const vars = ctx.response.variables;
+    
+    // Return the processed value
+    return `Echo: ${payload}`;
+  }
+}
+
+// Usage
+import { Interpreter } from 'tagscript';
+
+const ts = new Interpreter(new EchoParser());
+const result = await ts.run('{echo:Hello World}');
+console.log(result.body); // "Echo: Hello World"
+```
+
+## See Also
+
+- [Interpreter](/api/interpreter) - The main interpreter class
+- [Lexer](/api/lexer) - Tag parsing and structure
+- [Response](/api/response) - Response object containing results
+- [IParser](/api/interfaces/parser) - Parser interface definition

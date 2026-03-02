@@ -1,80 +1,447 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start Guide"
+description: "Learn TagScript basics and build your first dynamic template in minutes"
 ---
 
-## Get started in three steps
+This guide will walk you through creating your first TagScript application with real, working examples.
 
-Get your documentation site running locally and make your first customization.
+## Your First Template
 
-### Step 1: Set up your local environment
+Let's start with a simple example that demonstrates TagScript's core functionality.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Create the Interpreter">
+    First, import TagScript and create an interpreter with some parsers:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```typescript
+    import { Interpreter, RandomParser, RangeParser } from 'tagscript';
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    const ts = new Interpreter(
+      new RandomParser(),
+      new RangeParser()
+    );
+    ```
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    The `Interpreter` is the main engine that processes TagScript templates. You pass it the parsers you want to use.
+  </Step>
+  
+  <Step title="Write a Template">
+    Create a template string with TagScript tags:
+    
+    ```typescript
+    const template = `
+      {random:Parbez,Rkn,Priyansh} attempts to pick the lock!
+      Your lucky number is {range:1-100}!
+    `;
+    ```
+    
+    Tags are enclosed in curly braces `{}`. The `random` tag picks a random item from a comma-separated list, and `range` picks a random number in a range.
+  </Step>
+  
+  <Step title="Process the Template">
+    Run the template through the interpreter:
+    
+    ```typescript
+    const result = await ts.run(template);
+    console.log(result.body);
+    ```
+    
+    Output:
+    ```
+    Rkn attempts to pick the lock!
+    Your lucky number is 42!
+    ```
+    
+    Each time you run it, you'll get different random values!
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Working with Variables
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+TagScript lets users define and reference variables within templates.
 
-### Step 3: Go live
+<Steps>
+  <Step title="Add Variable Parsers">
+    Add parsers for defining and using variables:
+    
+    ```typescript
+    import { 
+      Interpreter, 
+      DefineParser, 
+      StrictVarsParser,
+      StringTransformer 
+    } from 'tagscript';
+    
+    const ts = new Interpreter(
+      new DefineParser(),
+      new StrictVarsParser()
+    );
+    ```
+  </Step>
+  
+  <Step title="Define Variables in Template">
+    Use the `{=}` tag to define variables:
+    
+    ```typescript
+    const template = `
+      {=(prefix):!}
+      {=(name):TagScript}
+      The prefix for {name} is: {prefix}
+    `;
+    
+    const result = await ts.run(template);
+    console.log(result.body);
+    ```
+    
+    Output:
+    ```
+    The prefix for TagScript is: !
+    ```
+    
+    The `{=(name):value}` syntax defines a variable, and `{name}` references it.
+  </Step>
+  
+  <Step title="Pass Variables from Code">
+    You can also pass variables directly from your code:
+    
+    ```typescript
+    const template = 'Hello {user}, you have {points} points!';
+    
+    const result = await ts.run(template, {
+      user: new StringTransformer('Alice'),
+      points: new StringTransformer('1250')
+    });
+    
+    console.log(result.body);
+    // Output: "Hello Alice, you have 1250 points!"
+    ```
+    
+    This is how you inject dynamic data into templates!
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Conditional Logic
 
-## Next steps
+Add smart decision-making to your templates with conditional parsers.
 
-Now that you have your docs running, explore these key features:
+```typescript
+import { 
+  Interpreter, 
+  IfStatementParser,
+  StrictVarsParser,
+  StringTransformer
+} from 'tagscript';
+
+const ts = new Interpreter(
+  new IfStatementParser(),
+  new StrictVarsParser()
+);
+
+const template = `
+  {if({score}>=100):Excellent work!|Keep trying!}
+  {if({score}<50):You need more practice.|You're doing well!}
+`;
+
+const result = await ts.run(template, {
+  score: new StringTransformer('75')
+});
+
+console.log(result.body);
+// Output: "Keep trying! You're doing well!"
+```
+
+### How If Statements Work
+
+The syntax is: `{if(condition):true_message|false_message}`
+
+Supported operators:
+- `==` - equality
+- `!=` - inequality  
+- `>` - greater than
+- `<` - less than
+- `>=` - greater than or equal
+- `<=` - less than or equal
+
+<CodeGroup>
+```typescript Simple comparison
+const template = '{if(5>3):Five is bigger|Three is bigger}';
+const result = await ts.run(template);
+// Output: "Five is bigger"
+```
+
+```typescript Variable comparison
+const template = '{if({age}>=18):Adult|Minor}';
+const result = await ts.run(template, {
+  age: new StringTransformer('21')
+});
+// Output: "Adult"
+```
+
+```typescript Nested conditions
+const template = `
+  {if({score}==100):Perfect score!|Too {if({score}<100):low|high}}
+`;
+const result = await ts.run(template, {
+  score: new StringTransformer('85')
+});
+// Output: "Too low"
+```
+</CodeGroup>
+
+## Advanced Conditionals
+
+For complex logic, use `{any}` (OR) and `{all}` (AND) parsers:
+
+```typescript
+import { 
+  Interpreter, 
+  UnionStatementParser,      // {any} or {or}
+  IntersectionStatementParser, // {all} or {and}
+  StrictVarsParser,
+  StringTransformer
+} from 'tagscript';
+
+const ts = new Interpreter(
+  new UnionStatementParser(),
+  new IntersectionStatementParser(),
+  new StrictVarsParser()
+);
+
+// Any/Or - true if ANY condition is true
+const anyTemplate = `
+  {any({role}==admin|{role}==moderator):Access granted|Access denied}
+`;
+
+// All/And - true if ALL conditions are true  
+const allTemplate = `
+  {all({age}>=18|{verified}==true):Welcome!|Cannot proceed}
+`;
+
+const result1 = await ts.run(anyTemplate, {
+  role: new StringTransformer('moderator')
+});
+console.log(result1.body); // "Access granted"
+
+const result2 = await ts.run(allTemplate, {
+  age: new StringTransformer('21'),
+  verified: new StringTransformer('true')
+});
+console.log(result2.body); // "Welcome!"
+```
+
+## String Manipulation
+
+Transform strings with powerful manipulation parsers:
+
+```typescript
+import { Interpreter, SliceParser, StrictVarsParser, StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(new SliceParser(), new StrictVarsParser());
+
+// Slice strings like arrays
+const template = `
+  {slice(0,5):Hello World}        → "Hello"
+  {slice(6):Hello World}           → "World"
+  {slice(0-5):Hello World}         → "Hello"
+`;
+
+const result = await ts.run(template);
+console.log(result.body);
+```
+
+### StringTransformer Parameters
+
+The `StringTransformer` can split and extract parts of strings:
+
+```typescript
+import { Interpreter, StrictVarsParser, StringTransformer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result1 = await ts.run('{args(1)}', {
+  args: new StringTransformer('Hello World How are you?')
+});
+console.log(result1.body); // "Hello"
+
+const result2 = await ts.run('{args(2)}', {
+  args: new StringTransformer('Hello World How are you?')
+});
+console.log(result2.body); // "World"
+
+// Use + for ranges
+const result3 = await ts.run('{args(3+)}', {
+  args: new StringTransformer('Hello World How are you?')
+});
+console.log(result3.body); // "How are you?"
+
+const result4 = await ts.run('{args(+2)}', {
+  args: new StringTransformer('Hello World How are you?')
+});
+console.log(result4.body); // "Hello World"
+```
+
+## Randomization
+
+Make your templates dynamic with randomization:
+
+<CodeGroup>
+```typescript Random Choice
+import { Interpreter, RandomParser } from 'tagscript';
+
+const ts = new Interpreter(new RandomParser());
+
+const template = '{random:rock,paper,scissors}';
+const result = await ts.run(template);
+// Output: "rock" or "paper" or "scissors"
+```
+
+```typescript Random Number
+import { Interpreter, RangeParser } from 'tagscript';
+
+const ts = new Interpreter(new RangeParser());
+
+const template = 'You rolled a {range:1-6}!';
+const result = await ts.run(template);
+// Output: "You rolled a 4!"
+```
+
+```typescript 50/50 Chance
+import { Interpreter, FiftyFiftyParser, IfStatementParser } from 'tagscript';
+
+const ts = new Interpreter(
+  new FiftyFiftyParser(),
+  new IfStatementParser()
+);
+
+const template = 'I pick {if({5050:.}!=):heads|tails}';
+const result = await ts.run(template);
+// Output: "I pick heads" or "I pick tails"
+```
+</CodeGroup>
+
+## Practical Example: Discord Bot Command
+
+Here's a real-world example of a custom command system for a Discord bot:
+
+```typescript
+import { 
+  Interpreter,
+  RandomParser,
+  RangeParser,
+  IfStatementParser,
+  DefineParser,
+  StrictVarsParser,
+  FiftyFiftyParser,
+  SliceParser,
+  StringTransformer
+} from 'tagscript';
+
+// Create interpreter with all needed parsers
+const ts = new Interpreter(
+  new SliceParser(),
+  new FiftyFiftyParser(),
+  new RandomParser(),
+  new RangeParser(),
+  new IfStatementParser(),
+  new DefineParser(),
+  new StrictVarsParser()
+);
+
+// User-created command template
+const userCommand = `
+  {=(roll):{range:1-20}}
+  {user} rolled a {roll}!
+  {if({roll}>=15):Critical success! 🎉|{if({roll}<=5):Critical failure! 💥|Normal roll.}}
+`;
+
+// Process the command with user context
+const result = await ts.run(userCommand, {
+  user: new StringTransformer('Alice'),
+  server: new StringTransformer('My Cool Server')
+});
+
+console.log(result.body);
+// Output: "Alice rolled a 18! Critical success! 🎉"
+//     or: "Alice rolled a 3! Critical failure! 💥"
+//     or: "Alice rolled a 12! Normal roll."
+```
+
+## Understanding the Response Object
+
+The `run()` method returns a `Response` object with useful information:
+
+```typescript
+const result = await ts.run(template, variables);
+
+// The processed output
+console.log(result.body);
+
+// The original template
+console.log(result.raw);
+
+// Variables that were defined or used
+console.log(result.variables);
+
+// Additional key-value data
+console.log(result.keyValues);
+```
+
+## Configuration Options
+
+The `run()` method accepts several optional parameters:
+
+```typescript
+await ts.run(
+  template,          // The template string
+  seedVariables,     // Initial variables (default: {})
+  charLimit,         // Max characters to process (default: null/unlimited)
+  tagLimit,          // Max tags to process (default: 2000)
+  parenType,         // Parameter syntax style (default: ParenType.Both)
+  keyValues          // Additional context data (default: {})
+);
+```
+
+### Example with limits:
+
+```typescript
+import { Interpreter, RandomParser, ParenType } from 'tagscript';
+
+const ts = new Interpreter(new RandomParser());
+
+const result = await ts.run(
+  template,
+  {},
+  5000,              // Limit output to 5000 characters
+  100,               // Process maximum 100 tags
+  ParenType.Both,    // Allow both (param) and .param syntax
+  { debug: true }    // Custom context data
+);
+```
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Tag Syntax" icon="code" href="/core/tag-syntax">
+    Learn the complete tag syntax and structure
+  </Card>
+  
+  <Card title="All Parsers" icon="list" href="/parsers/overview">
+    Explore all 15+ built-in parsers
+  </Card>
+  
+  <Card title="Custom Parsers" icon="wrench" href="/examples/custom-parsers">
+    Create your own parsers for custom functionality
+  </Card>
+  
+  <Card title="Transformers" icon="wand-magic-sparkles" href="/transformers/overview">
+    Deep dive into the transformer system
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Tip>
+  **Pro tip**: Start with a few parsers and add more as you need them. Too many parsers can make debugging harder for users.
+</Tip>
+
+<Warning>
+  Remember to set appropriate `charLimit` and `tagLimit` values in production to prevent abuse and protect your application from processing excessively large templates.
+</Warning>

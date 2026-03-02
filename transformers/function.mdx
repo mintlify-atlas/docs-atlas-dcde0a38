@@ -1,0 +1,413 @@
+---
+title: FunctionTransformer
+description: Create custom transformation logic with full control over tag parameters and payloads
+---
+
+# FunctionTransformer
+
+The `FunctionTransformer` executes a custom function to transform values, providing complete control over the transformation logic based on tag parameters and payloads.
+
+## Overview
+
+FunctionTransformer enables you to:
+- Implement custom transformation logic
+- Access tag parameters and payloads
+- Create dynamic, context-aware transformations
+- Encapsulate complex transformation rules
+- Build reusable transformation functions
+
+## Constructor
+
+<ParamField path="fn" type="TransformerFunction" required>
+  A function that receives a `Lexer` tag object and returns a string. The function signature is:
+  
+  ```typescript
+  (tag: Lexer) => string
+  ```
+  
+  The `Lexer` object provides:
+  - `tag.parameter` - The parameter from `{var(parameter)}`
+  - `tag.payload` - The payload from `{var:payload}` or `{var(param):payload}`
+</ParamField>
+
+```typescript
+import { FunctionTransformer } from 'tagscript';
+import type { Lexer } from 'tagscript';
+
+const customTransformer = new FunctionTransformer((tag: Lexer) => {
+  return `Param: ${tag.parameter}, Payload: ${tag.payload}`;
+});
+```
+
+## Transform Method
+
+The `transform` method executes the provided function:
+
+```typescript
+transform(tag: Lexer): string
+```
+
+- **tag** - The lexer object containing parameter and payload information
+- **Returns** - The result of your transformation function
+
+## Usage Examples
+
+<Note>
+FunctionTransformer requires `StrictVarsParser` to function properly.
+</Note>
+
+### Basic Custom Transformation
+
+Create a simple transformation function:
+
+```typescript
+import { Interpreter, FunctionTransformer, StrictVarsParser } from 'tagscript';
+import type { Lexer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const greeting = new FunctionTransformer((tag: Lexer) => {
+  if (tag.parameter === 'formal') {
+    return 'Good day, sir/madam';
+  }
+  return 'Hey there!';
+});
+
+await ts.run('{greet}', { greet: greeting });
+// Output: Hey there!
+
+await ts.run('{greet(formal)}', { greet: greeting });
+// Output: Good day, sir/madam
+```
+
+### Parameter-Based Logic
+
+Use parameters to control transformation behavior:
+
+```typescript
+const formatter = new FunctionTransformer((tag: Lexer) => {
+  const text = tag.payload || 'hello';
+  
+  switch (tag.parameter) {
+    case 'upper':
+      return text.toUpperCase();
+    case 'lower':
+      return text.toLowerCase();
+    case 'title':
+      return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+    default:
+      return text;
+  }
+});
+
+await ts.run('{fmt(upper):hello world}', { fmt: formatter });
+// Output: HELLO WORLD
+
+await ts.run('{fmt(title):hello world}', { fmt: formatter });
+// Output: Hello world
+```
+
+### Accessing Both Parameter and Payload
+
+Combine parameter and payload for complex transformations:
+
+```typescript
+const math = new FunctionTransformer((tag: Lexer) => {
+  const num = parseInt(tag.payload || '0', 10);
+  const operation = tag.parameter;
+  
+  switch (operation) {
+    case 'double':
+      return String(num * 2);
+    case 'square':
+      return String(num * num);
+    case 'half':
+      return String(num / 2);
+    default:
+      return String(num);
+  }
+});
+
+await ts.run('{calc(double):5}', { calc: math });
+// Output: 10
+
+await ts.run('{calc(square):4}', { calc: math });
+// Output: 16
+```
+
+### Stateful Transformations
+
+Create transformers that maintain state using closures:
+
+```typescript
+function createCounter(start: number = 0) {
+  let count = start;
+  
+  return new FunctionTransformer((tag: Lexer) => {
+    if (tag.parameter === 'inc') {
+      count++;
+    } else if (tag.parameter === 'dec') {
+      count--;
+    } else if (tag.parameter === 'reset') {
+      count = start;
+    }
+    return String(count);
+  });
+}
+
+const counter = createCounter(10);
+
+const template = `
+Start: {count}
+After inc: {count(inc)}
+After inc: {count(inc)}
+After dec: {count(dec)}
+Reset: {count(reset)}
+`;
+
+await ts.run(template, { count: counter });
+// Output:
+// Start: 10
+// After inc: 11
+// After inc: 12
+// After dec: 11
+// Reset: 10
+```
+
+### Date and Time Formatting
+
+```typescript
+const dateFormatter = new FunctionTransformer((tag: Lexer) => {
+  const date = new Date();
+  
+  switch (tag.parameter) {
+    case 'date':
+      return date.toLocaleDateString();
+    case 'time':
+      return date.toLocaleTimeString();
+    case 'iso':
+      return date.toISOString();
+    case 'year':
+      return String(date.getFullYear());
+    default:
+      return date.toString();
+  }
+});
+
+await ts.run('Date: {now(date)}, Time: {now(time)}', { now: dateFormatter });
+// Output: Date: 3/2/2026, Time: 10:30:45 AM
+```
+
+### Conditional Logic
+
+```typescript
+const conditional = new FunctionTransformer((tag: Lexer) => {
+  const condition = tag.parameter;
+  const [ifTrue, ifFalse] = (tag.payload || 'yes|no').split('|');
+  
+  // Example: Check if parameter equals "true"
+  return condition === 'true' ? ifTrue : ifFalse;
+});
+
+await ts.run('{check(true):Success|Failed}', { check: conditional });
+// Output: Success
+
+await ts.run('{check(false):Success|Failed}', { check: conditional });
+// Output: Failed
+```
+
+## Tag Syntax for End Users
+
+When using FunctionTransformer variables in templates:
+
+```yaml
+# Call with no parameters
+{variable}
+
+# Call with parameter
+{variable(parameter)}
+
+# Call with payload
+{variable:payload}
+
+# Call with both parameter and payload
+{variable(parameter):payload}
+```
+
+## Behavior Details
+
+### Function Signature
+
+Your transformation function receives a `Lexer` object:
+
+```typescript
+type TransformerFunction = (tag: Lexer) => string;
+
+interface Lexer {
+  parameter: string | null;  // From {var(param)}
+  payload: string | null;    // From {var:payload}
+  // ... other properties
+}
+```
+
+### Return Value
+- Must return a `string`
+- Return empty string for no output
+- Cannot return `null` (unlike other transformers)
+
+### Parameter Access
+- `tag.parameter` - `null` if no parameter provided
+- `tag.payload` - `null` if no payload provided
+- Both can be present: `{var(param):payload}`
+
+## Common Use Cases
+
+### Text Formatting
+
+```typescript
+const textFormatter = new FunctionTransformer((tag: Lexer) => {
+  const text = tag.payload || '';
+  const format = tag.parameter;
+  
+  const formats: Record<string, (s: string) => string> = {
+    upper: (s) => s.toUpperCase(),
+    lower: (s) => s.toLowerCase(),
+    reverse: (s) => s.split('').reverse().join(''),
+    length: (s) => String(s.length),
+  };
+  
+  return formats[format || 'identity']?.(text) ?? text;
+});
+```
+
+### Environment Variables
+
+```typescript
+const env = new FunctionTransformer((tag: Lexer) => {
+  const key = tag.parameter;
+  const defaultValue = tag.payload || '';
+  return process.env[key || ''] || defaultValue;
+});
+
+await ts.run('{env(NODE_ENV):development}', { env });
+// Output: production (or development if not set)
+```
+
+### Random Selection
+
+```typescript
+const random = new FunctionTransformer((tag: Lexer) => {
+  const options = (tag.payload || '').split('|');
+  const index = Math.floor(Math.random() * options.length);
+  return options[index] || '';
+});
+
+await ts.run('{rand:apple|banana|cherry}', { rand: random });
+// Output: apple (or banana, or cherry - random)
+```
+
+### URL Encoding
+
+```typescript
+const urlEncoder = new FunctionTransformer((tag: Lexer) => {
+  const text = tag.payload || tag.parameter || '';
+  return encodeURIComponent(text);
+});
+
+await ts.run('{encode:hello world}', { encode: urlEncoder });
+// Output: hello%20world
+```
+
+## Advanced Patterns
+
+### Factory Functions
+
+Create reusable transformer factories:
+
+```typescript
+function createMultiplier(factor: number) {
+  return new FunctionTransformer((tag: Lexer) => {
+    const num = parseInt(tag.payload || tag.parameter || '1', 10);
+    return String(num * factor);
+  });
+}
+
+const double = createMultiplier(2);
+const triple = createMultiplier(3);
+
+await ts.run('{x2:5}', { x2: double });  // Output: 10
+await ts.run('{x3:5}', { x3: triple });  // Output: 15
+```
+
+### Async Transformations
+
+Note: The transformer itself is synchronous, but you can use async data:
+
+```typescript
+const cache: Record<string, string> = {};
+
+// Pre-populate cache asynchronously
+await populateCache(cache);
+
+const lookup = new FunctionTransformer((tag: Lexer) => {
+  const key = tag.parameter || '';
+  return cache[key] || 'not found';
+});
+```
+
+### Composition
+
+Combine multiple transformers:
+
+```typescript
+function compose(...transformers: FunctionTransformer[]) {
+  return new FunctionTransformer((tag: Lexer) => {
+    return transformers.reduce((result, transformer) => {
+      return transformer.transform({ ...tag, payload: result });
+    }, tag.payload || '');
+  });
+}
+```
+
+## Best Practices
+
+1. **Handle null values** - Always check if `tag.parameter` or `tag.payload` are null
+2. **Provide defaults** - Use default values for missing parameters
+3. **Keep functions pure** - Avoid side effects when possible
+4. **Document parameters** - Clearly document what parameters your function accepts
+5. **Return strings** - Always return a string (even if empty)
+6. **Error handling** - Handle invalid inputs gracefully
+
+```typescript
+// Good example following best practices
+const safeFormatter = new FunctionTransformer((tag: Lexer) => {
+  try {
+    const text = tag.payload ?? tag.parameter ?? '';
+    const format = tag.parameter ?? 'default';
+    
+    if (!text) return '';
+    
+    switch (format) {
+      case 'upper':
+        return text.toUpperCase();
+      default:
+        return text;
+    }
+  } catch (error) {
+    return `Error: ${error.message}`;
+  }
+});
+```
+
+## Implementation Reference
+
+The FunctionTransformer is implemented at:
+`~/workspace/source/packages/tagscript/src/lib/Transformer/Function.ts:6`
+
+## Related
+
+- [StringTransformer](/transformers/string) - For string transformations
+- [IntegerTransformer](/transformers/integer) - For numeric transformations
+- [SafeObjectTransformer](/transformers/object) - For object property access
+- [StrictVarsParser](/parsers/strict-vars) - Required parser for transformers
+- [ITransformer Interface](/api/interfaces/transformer) - Base transformer interface

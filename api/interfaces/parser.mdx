@@ -1,0 +1,368 @@
+---
+title: IParser
+description: Interface for creating custom TagScript parsers
+---
+
+The `IParser` interface defines the contract for creating custom parsers in TagScript. Parsers are responsible for recognizing and processing specific tag types during interpretation.
+
+## Interface Definition
+
+```ts
+interface IParser {
+  parse: (ctx: Context) => Awaitable<string | null>;
+  willAccept: (ctx: Context) => Awaitable<boolean>;
+}
+```
+
+Parsers must implement two methods:
+
+1. **willAccept()** - Determines if the parser can handle a given tag
+2. **parse()** - Processes the tag and returns the result
+
+## Methods
+
+### willAccept()
+
+Determines whether the parser can handle the given tag. Called by the interpreter for each registered parser until one accepts the tag.
+
+```ts
+willAccept(ctx: Context): Awaitable<boolean>
+```
+
+<ParamField path="ctx" type="Context" required>
+  The context object containing the tag being processed, response state, interpreter instance, and original message.
+</ParamField>
+
+<ResponseField name="return" type="Awaitable<boolean>">
+  Returns `true` if this parser can process the tag, `false` otherwise. Can be synchronous or asynchronous.
+</ResponseField>
+
+#### Example
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+class CustomParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'custom';
+  }
+  
+  async parse(ctx: Context) {
+    return 'custom output';
+  }
+}
+```
+
+### parse()
+
+Processes the tag and returns the parsed value. Only called if `willAccept()` returns `true`.
+
+```ts
+parse(ctx: Context): Awaitable<string | null>
+```
+
+<ParamField path="ctx" type="Context" required>
+  The context object containing:
+  - `tag` - The Lexer instance with declaration, parameter, and payload
+  - `response` - The Response object with variables, actions, and keyValues
+  - `interpreter` - The Interpreter instance
+  - `originalMessage` - The original unprocessed message
+</ParamField>
+
+<ResponseField name="return" type="Awaitable<string | null>">
+  Returns the processed string to replace the tag, or `null` to leave the tag unchanged. Can be synchronous or asynchronous.
+</ResponseField>
+
+#### Example
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+class EchoParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'echo';
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    return ctx.tag.payload || '';
+  }
+}
+```
+
+## Awaitable Type
+
+Both methods can return their values synchronously or asynchronously:
+
+```ts
+type Awaitable<T> = T | Promise<T>
+```
+
+This allows you to write parsers that perform async operations (like API calls) or simple synchronous transformations.
+
+## Creating Custom Parsers
+
+### Basic Implementation
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+class UpperParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'upper';
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const payload = ctx.tag.payload;
+    if (!payload) return null;
+    
+    return payload.toUpperCase();
+  }
+}
+
+// Usage
+import { Interpreter } from 'tagscript';
+
+const ts = new Interpreter(new UpperParser());
+const result = await ts.run('{upper:hello world}');
+console.log(result.body); // "HELLO WORLD"
+```
+
+### With Parameters
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+class RepeatParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'repeat' && 
+           ctx.tag.parameter !== null && 
+           ctx.tag.payload !== null;
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const times = parseInt(ctx.tag.parameter!);
+    const text = ctx.tag.payload!;
+    
+    if (isNaN(times)) return null;
+    
+    return text.repeat(times);
+  }
+}
+
+// Usage
+const ts = new Interpreter(new RepeatParser());
+const result = await ts.run('{repeat(3):Hi!}');
+console.log(result.body); // "Hi!Hi!Hi!"
+```
+
+### Accessing Variables
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+class GetVarParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'getvar';
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const varName = ctx.tag.payload;
+    if (!varName) return null;
+    
+    const transformer = ctx.response.variables[varName];
+    if (!transformer) return `Variable '${varName}' not found`;
+    
+    return transformer.transform(ctx.tag);
+  }
+}
+```
+
+### Setting Actions
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+// Extend IActions
+declare module 'tagscript' {
+  interface IActions {
+    logged?: string[];
+  }
+}
+
+class LogParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'log';
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const message = ctx.tag.payload || '';
+    
+    // Initialize or append to logged actions
+    if (!ctx.response.actions.logged) {
+      ctx.response.actions.logged = [];
+    }
+    ctx.response.actions.logged.push(message);
+    
+    return ''; // Don't output anything
+  }
+}
+```
+
+### Async Operations
+
+```ts
+import { IParser, Context } from 'tagscript';
+
+class FetchParser implements IParser {
+  willAccept(ctx: Context): boolean {
+    return ctx.tag.declaration === 'fetch';
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const url = ctx.tag.payload;
+    if (!url) return null;
+    
+    try {
+      const response = await fetch(url);
+      const data = await response.text();
+      return data;
+    } catch (error) {
+      return `Error: ${error.message}`;
+    }
+  }
+}
+```
+
+## Using BaseParser
+
+TagScript provides a `BaseParser` class that implements common `willAccept()` logic:
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class EchoParser extends BaseParser {
+  constructor() {
+    super(
+      ['echo', 'repeat'], // accepted tag names
+      false,              // parameter not required
+      true                // payload required
+    );
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    return ctx.tag.payload;
+  }
+}
+
+// Automatically handles willAccept() logic:
+// - Checks if declaration is 'echo' or 'repeat'
+// - Checks if payload exists (required)
+```
+
+### BaseParser Constructor
+
+```ts
+constructor(
+  acceptedNames: string[],
+  requiredParameter?: boolean,
+  requiredPayload?: boolean
+)
+```
+
+<ParamField path="acceptedNames" type="string[]" required>
+  Array of tag names (declarations) this parser accepts. Comparison is case-insensitive.
+</ParamField>
+
+<ParamField path="requiredParameter" type="boolean" default="false">
+  If `true`, the tag must have a parameter for `willAccept()` to return `true`.
+</ParamField>
+
+<ParamField path="requiredPayload" type="boolean" default="false">
+  If `true`, the tag must have a payload for `willAccept()` to return `true`.
+</ParamField>
+
+## Complete Examples
+
+### Math Parser
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class MathParser extends BaseParser {
+  constructor() {
+    super(['math', 'calc'], false, true);
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const expression = ctx.tag.payload!;
+    
+    try {
+      // Simple evaluation (use a safe eval library in production)
+      const result = eval(expression);
+      return String(result);
+    } catch (error) {
+      return 'Invalid expression';
+    }
+  }
+}
+
+// Usage
+const ts = new Interpreter(new MathParser());
+const result = await ts.run('{math:2 + 2 * 3}');
+console.log(result.body); // "8"
+```
+
+### Conditional Parser
+
+```ts
+import { BaseParser, Context } from 'tagscript';
+
+class IfParser extends BaseParser {
+  constructor() {
+    super(['if'], false, true);
+  }
+  
+  async parse(ctx: Context): Promise<string | null> {
+    const payload = ctx.tag.payload!;
+    
+    // Format: condition:true_value|false_value
+    const [condition, values] = payload.split(':');
+    const [trueValue, falseValue] = values.split('|');
+    
+    // Simple equality check
+    const result = condition.includes('==') 
+      ? condition.split('==')[0].trim() === condition.split('==')[1].trim()
+      : Boolean(condition);
+    
+    return result ? trueValue : falseValue;
+  }
+}
+
+// Usage
+const ts = new Interpreter(new IfParser());
+const result = await ts.run('{if:5==5:yes|no}');
+console.log(result.body); // "yes"
+```
+
+## Best Practices
+
+1. **Return null for unhandled cases** - If your parser can't process a tag, return `null` to let other parsers try
+
+2. **Use BaseParser when possible** - It handles common validation logic automatically
+
+3. **Keep willAccept() fast** - This method is called for every tag and parser combination
+
+4. **Validate input** - Always check if required components (parameter, payload) exist before using them
+
+5. **Handle errors gracefully** - Return error messages instead of throwing, or use try-catch blocks
+
+6. **Use async when needed** - Don't make parse() async unless you need to perform async operations
+
+7. **Document your parser** - Include JSDoc comments explaining what tags it handles and the expected syntax
+
+## See Also
+
+- [Context](/api/context) - Context object passed to parser methods
+- [Interpreter](/api/interpreter) - Registers and executes parsers
+- [ITransformer](/api/interfaces/transformer) - Interface for variable transformers
+- [BaseParser](https://github.com/imnaiyar/tagscript/blob/main/packages/tagscript/src/lib/Parsers/Base.ts) - Base class for parsers

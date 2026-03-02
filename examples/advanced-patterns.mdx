@@ -1,0 +1,1011 @@
+---
+title: Advanced Patterns
+description: Advanced usage patterns and best practices for TagScript
+---
+
+# Advanced Patterns
+
+Master advanced TagScript techniques for building complex, production-ready applications.
+
+## Parser Composition
+
+Combine multiple parsers to create powerful tag systems.
+
+### Layered Parser Architecture
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import {
+  Interpreter,
+  StrictVarsParser,
+  RandomParser,
+  IfStatementParser,
+  SliceParser,
+  ReplaceParser,
+  RangeParser,
+  FiftyFiftyParser,
+  LooseVarsParser
+} from 'tagscript';
+
+/**
+ * Creates a fully-featured interpreter with all standard parsers.
+ * Parsers are ordered from most specific to most general.
+ */
+function createInterpreter() {
+  return new Interpreter(
+    // Control flow parsers (highest priority)
+    new IfStatementParser(),
+    new FiftyFiftyParser(),
+    
+    // String manipulation parsers
+    new SliceParser(),
+    new ReplaceParser(),
+    
+    // Random/generation parsers
+    new RandomParser(),
+    new RangeParser(),
+    
+    // Variable parsers (lowest priority)
+    new StrictVarsParser(),
+    new LooseVarsParser()
+  );
+}
+
+const ts = createInterpreter();
+
+// Complex nested example
+const result = await ts.run(`
+{if({5050}==1):
+  You won {random: 100, 200, 300} coins!
+|
+  Better luck next time! Here's {range(1-10)} consolation coins.
+}
+`);
+```
+```js tab="JavaScript" showLineNumbers
+const {
+  Interpreter,
+  StrictVarsParser,
+  RandomParser,
+  IfStatementParser,
+  SliceParser,
+  ReplaceParser,
+  RangeParser,
+  FiftyFiftyParser,
+  LooseVarsParser
+} = require('tagscript');
+
+/**
+ * Creates a fully-featured interpreter with all standard parsers.
+ * Parsers are ordered from most specific to most general.
+ */
+function createInterpreter() {
+  return new Interpreter(
+    // Control flow parsers (highest priority)
+    new IfStatementParser(),
+    new FiftyFiftyParser(),
+    
+    // String manipulation parsers
+    new SliceParser(),
+    new ReplaceParser(),
+    
+    // Random/generation parsers
+    new RandomParser(),
+    new RangeParser(),
+    
+    // Variable parsers (lowest priority)
+    new StrictVarsParser(),
+    new LooseVarsParser()
+  );
+}
+
+const ts = createInterpreter();
+
+// Complex nested example
+const result = await ts.run(`
+{if({5050}==1):
+  You won {random: 100, 200, 300} coins!
+|
+  Better luck next time! Here's {range(1-10)} consolation coins.
+}
+`);
+```
+</Tabs>
+
+## Custom Transformer System
+
+Create reusable transformers for complex objects.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import type { ITransformer, Lexer } from 'tagscript';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'moderator' | 'user';
+  createdAt: Date;
+  stats: {
+    posts: number;
+    likes: number;
+    followers: number;
+  };
+}
+
+/**
+ * Transformer for User objects with computed properties.
+ */
+export class UserTransformer implements ITransformer {
+  private user: User;
+  private safeValues: Record<string, string | number | boolean>;
+
+  constructor(user: User) {
+    this.user = user;
+    this.safeValues = {
+      // Basic properties
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      
+      // Computed properties
+      isAdmin: user.role === 'admin',
+      isModerator: user.role === 'moderator' || user.role === 'admin',
+      
+      // Stats
+      posts: user.stats.posts,
+      likes: user.stats.likes,
+      followers: user.stats.followers,
+      
+      // Formatted dates
+      joinedDate: user.createdAt.toLocaleDateString(),
+      joinedTimestamp: user.createdAt.getTime(),
+      
+      // Calculated values
+      popularity: this.calculatePopularity(),
+      rank: this.calculateRank()
+    };
+  }
+
+  public transform(tag: Lexer): string | null {
+    if (!tag.parameter) {
+      return this.user.username; // Default to username
+    }
+
+    const value = this.safeValues[tag.parameter];
+    if (value === undefined) {
+      return null; // Property doesn't exist
+    }
+
+    return String(value);
+  }
+
+  private calculatePopularity(): number {
+    const { posts, likes, followers } = this.user.stats;
+    return Math.round((likes + followers * 2 + posts * 0.5) / 10);
+  }
+
+  private calculateRank(): string {
+    const pop = this.calculatePopularity();
+    if (pop > 100) return 'Legend';
+    if (pop > 50) return 'Expert';
+    if (pop > 20) return 'Regular';
+    return 'Newcomer';
+  }
+
+  public toJSON() {
+    return this.safeValues;
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+/**
+ * Transformer for User objects with computed properties.
+ */
+class UserTransformer {
+  constructor(user) {
+    this.user = user;
+    this.safeValues = {
+      // Basic properties
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      
+      // Computed properties
+      isAdmin: user.role === 'admin',
+      isModerator: user.role === 'moderator' || user.role === 'admin',
+      
+      // Stats
+      posts: user.stats.posts,
+      likes: user.stats.likes,
+      followers: user.stats.followers,
+      
+      // Formatted dates
+      joinedDate: user.createdAt.toLocaleDateString(),
+      joinedTimestamp: user.createdAt.getTime(),
+      
+      // Calculated values
+      popularity: this.calculatePopularity(),
+      rank: this.calculateRank()
+    };
+  }
+
+  transform(tag) {
+    if (!tag.parameter) {
+      return this.user.username; // Default to username
+    }
+
+    const value = this.safeValues[tag.parameter];
+    if (value === undefined) {
+      return null; // Property doesn't exist
+    }
+
+    return String(value);
+  }
+
+  calculatePopularity() {
+    const { posts, likes, followers } = this.user.stats;
+    return Math.round((likes + followers * 2 + posts * 0.5) / 10);
+  }
+
+  calculateRank() {
+    const pop = this.calculatePopularity();
+    if (pop > 100) return 'Legend';
+    if (pop > 50) return 'Expert';
+    if (pop > 20) return 'Regular';
+    return 'Newcomer';
+  }
+
+  toJSON() {
+    return this.safeValues;
+  }
+}
+
+module.exports = { UserTransformer };
+```
+</Tabs>
+
+**Usage:**
+
+```ts showLineNumbers
+import { Interpreter, StrictVarsParser } from 'tagscript';
+import { UserTransformer } from './UserTransformer';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const user: User = {
+  id: '123',
+  username: 'alice',
+  email: 'alice@example.com',
+  role: 'moderator',
+  createdAt: new Date('2023-01-15'),
+  stats: {
+    posts: 45,
+    likes: 320,
+    followers: 89
+  }
+};
+
+const result = await ts.run(`
+User Profile: {user.username}
+Role: {user.role}
+Rank: {user.rank}
+Popularity Score: {user.popularity}
+Joined: {user.joinedDate}
+Stats: {user.posts} posts, {user.followers} followers
+`, {
+  user: new UserTransformer(user)
+});
+```
+
+## Template System with Caching
+
+Build a high-performance template system with caching.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, type IParser } from 'tagscript';
+import type { Response } from 'tagscript';
+
+interface TemplateOptions {
+  cache?: boolean;
+  ttl?: number; // Time to live in milliseconds
+}
+
+interface CacheEntry {
+  template: string;
+  timestamp: number;
+}
+
+/**
+ * Advanced template manager with caching and pre-compilation.
+ */
+export class TemplateManager {
+  private interpreter: Interpreter;
+  private cache: Map<string, CacheEntry>;
+  private defaultTTL: number;
+
+  constructor(parsers: IParser[], ttl: number = 60000) {
+    this.interpreter = new Interpreter(...parsers);
+    this.cache = new Map();
+    this.defaultTTL = ttl;
+  }
+
+  /**
+   * Register a named template.
+   */
+  public register(name: string, template: string, options: TemplateOptions = {}) {
+    if (options.cache !== false) {
+      this.cache.set(name, {
+        template,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Execute a template by name.
+   */
+  public async execute(
+    name: string,
+    variables: Record<string, any> = {}
+  ): Promise<Response | null> {
+    const cached = this.cache.get(name);
+    if (!cached) {
+      throw new Error(`Template '${name}' not found`);
+    }
+
+    // Check if cache is expired
+    const age = Date.now() - cached.timestamp;
+    if (age > this.defaultTTL) {
+      this.cache.delete(name);
+      throw new Error(`Template '${name}' expired`);
+    }
+
+    return await this.interpreter.run(cached.template, variables);
+  }
+
+  /**
+   * Execute a template string directly.
+   */
+  public async run(
+    template: string,
+    variables: Record<string, any> = {}
+  ): Promise<Response> {
+    return await this.interpreter.run(template, variables);
+  }
+
+  /**
+   * Clear specific template from cache.
+   */
+  public clear(name: string): boolean {
+    return this.cache.delete(name);
+  }
+
+  /**
+   * Clear all templates from cache.
+   */
+  public clearAll(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Get cache statistics.
+   */
+  public stats() {
+    return {
+      size: this.cache.size,
+      templates: Array.from(this.cache.keys()),
+      averageAge: this.getAverageAge()
+    };
+  }
+
+  private getAverageAge(): number {
+    if (this.cache.size === 0) return 0;
+    
+    const now = Date.now();
+    const totalAge = Array.from(this.cache.values())
+      .reduce((sum, entry) => sum + (now - entry.timestamp), 0);
+    
+    return totalAge / this.cache.size;
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter } = require('tagscript');
+
+/**
+ * Advanced template manager with caching and pre-compilation.
+ */
+class TemplateManager {
+  constructor(parsers, ttl = 60000) {
+    this.interpreter = new Interpreter(...parsers);
+    this.cache = new Map();
+    this.defaultTTL = ttl;
+  }
+
+  /**
+   * Register a named template.
+   */
+  register(name, template, options = {}) {
+    if (options.cache !== false) {
+      this.cache.set(name, {
+        template,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Execute a template by name.
+   */
+  async execute(name, variables = {}) {
+    const cached = this.cache.get(name);
+    if (!cached) {
+      throw new Error(`Template '${name}' not found`);
+    }
+
+    // Check if cache is expired
+    const age = Date.now() - cached.timestamp;
+    if (age > this.defaultTTL) {
+      this.cache.delete(name);
+      throw new Error(`Template '${name}' expired`);
+    }
+
+    return await this.interpreter.run(cached.template, variables);
+  }
+
+  /**
+   * Execute a template string directly.
+   */
+  async run(template, variables = {}) {
+    return await this.interpreter.run(template, variables);
+  }
+
+  /**
+   * Clear specific template from cache.
+   */
+  clear(name) {
+    return this.cache.delete(name);
+  }
+
+  /**
+   * Clear all templates from cache.
+   */
+  clearAll() {
+    this.cache.clear();
+  }
+
+  /**
+   * Get cache statistics.
+   */
+  stats() {
+    return {
+      size: this.cache.size,
+      templates: Array.from(this.cache.keys()),
+      averageAge: this.getAverageAge()
+    };
+  }
+
+  getAverageAge() {
+    if (this.cache.size === 0) return 0;
+    
+    const now = Date.now();
+    const totalAge = Array.from(this.cache.values())
+      .reduce((sum, entry) => sum + (now - entry.timestamp), 0);
+    
+    return totalAge / this.cache.size;
+  }
+}
+
+module.exports = { TemplateManager };
+```
+</Tabs>
+
+**Usage:**
+
+```ts showLineNumbers
+import { StrictVarsParser, RandomParser } from 'tagscript';
+import { StringTransformer } from 'tagscript';
+import { TemplateManager } from './TemplateManager';
+
+const manager = new TemplateManager(
+  [new StrictVarsParser(), new RandomParser()],
+  300000 // 5 minutes TTL
+);
+
+// Register templates
+manager.register('welcome', 'Welcome {user}! {random: Have fun, Enjoy, Good luck}!');
+manager.register('goodbye', 'Goodbye {user}! Thanks for visiting.');
+
+// Execute templates
+const result1 = await manager.execute('welcome', {
+  user: new StringTransformer('Alice')
+});
+
+const result2 = await manager.execute('goodbye', {
+  user: new StringTransformer('Bob')
+});
+
+console.log(manager.stats());
+// { size: 2, templates: ['welcome', 'goodbye'], averageAge: 125 }
+```
+
+## Database-Backed Tag System
+
+Implement a complete database-backed custom tag system.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter, StrictVarsParser, RandomParser } from 'tagscript';
+import type { Response } from 'tagscript';
+
+interface TagData {
+  name: string;
+  content: string;
+  author: string;
+  uses: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Database-backed tag system for Discord bots.
+ */
+export class TagSystem {
+  private interpreter: Interpreter;
+  private db: Map<string, TagData>; // Replace with real database
+
+  constructor() {
+    this.interpreter = new Interpreter(
+      new StrictVarsParser(),
+      new RandomParser()
+    );
+    this.db = new Map();
+  }
+
+  /**
+   * Create a new tag.
+   */
+  public async createTag(
+    name: string,
+    content: string,
+    author: string
+  ): Promise<{ success: boolean; error?: string }> {
+    // Validate tag name
+    if (!/^[a-z0-9_-]+$/i.test(name)) {
+      return { success: false, error: 'Invalid tag name. Use only letters, numbers, hyphens, and underscores.' };
+    }
+
+    // Check if tag exists
+    if (this.db.has(name.toLowerCase())) {
+      return { success: false, error: 'Tag already exists.' };
+    }
+
+    // Validate content
+    if (content.length > 2000) {
+      return { success: false, error: 'Tag content too long (max 2000 characters).' };
+    }
+
+    // Test parse the content
+    try {
+      await this.interpreter.run(content, {});
+    } catch (error) {
+      return { success: false, error: 'Invalid tag syntax.' };
+    }
+
+    // Save to database
+    this.db.set(name.toLowerCase(), {
+      name,
+      content,
+      author,
+      uses: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Execute a tag.
+   */
+  public async executeTag(
+    name: string,
+    variables: Record<string, any> = {}
+  ): Promise<Response | null> {
+    const tag = this.db.get(name.toLowerCase());
+    if (!tag) {
+      return null;
+    }
+
+    // Increment usage counter
+    tag.uses++;
+    tag.updatedAt = new Date();
+
+    // Execute the tag
+    return await this.interpreter.run(tag.content, variables);
+  }
+
+  /**
+   * Edit an existing tag.
+   */
+  public async editTag(
+    name: string,
+    content: string,
+    editor: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const tag = this.db.get(name.toLowerCase());
+    if (!tag) {
+      return { success: false, error: 'Tag not found.' };
+    }
+
+    // Check permissions
+    if (tag.author !== editor) {
+      return { success: false, error: 'You can only edit your own tags.' };
+    }
+
+    // Validate new content
+    if (content.length > 2000) {
+      return { success: false, error: 'Tag content too long.' };
+    }
+
+    try {
+      await this.interpreter.run(content, {});
+    } catch (error) {
+      return { success: false, error: 'Invalid tag syntax.' };
+    }
+
+    // Update tag
+    tag.content = content;
+    tag.updatedAt = new Date();
+
+    return { success: true };
+  }
+
+  /**
+   * Delete a tag.
+   */
+  public deleteTag(name: string, deleter: string): { success: boolean; error?: string } {
+    const tag = this.db.get(name.toLowerCase());
+    if (!tag) {
+      return { success: false, error: 'Tag not found.' };
+    }
+
+    if (tag.author !== deleter) {
+      return { success: false, error: 'You can only delete your own tags.' };
+    }
+
+    this.db.delete(name.toLowerCase());
+    return { success: true };
+  }
+
+  /**
+   * Get tag information.
+   */
+  public getTagInfo(name: string): TagData | null {
+    return this.db.get(name.toLowerCase()) || null;
+  }
+
+  /**
+   * List all tags.
+   */
+  public listTags(): TagData[] {
+    return Array.from(this.db.values())
+      .sort((a, b) => b.uses - a.uses); // Sort by usage
+  }
+
+  /**
+   * Search tags by name.
+   */
+  public searchTags(query: string): TagData[] {
+    const lowerQuery = query.toLowerCase();
+    return Array.from(this.db.values())
+      .filter(tag => tag.name.toLowerCase().includes(lowerQuery));
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter, StrictVarsParser, RandomParser } = require('tagscript');
+
+/**
+ * Database-backed tag system for Discord bots.
+ */
+class TagSystem {
+  constructor() {
+    this.interpreter = new Interpreter(
+      new StrictVarsParser(),
+      new RandomParser()
+    );
+    this.db = new Map(); // Replace with real database
+  }
+
+  /**
+   * Create a new tag.
+   */
+  async createTag(name, content, author) {
+    // Validate tag name
+    if (!/^[a-z0-9_-]+$/i.test(name)) {
+      return { success: false, error: 'Invalid tag name. Use only letters, numbers, hyphens, and underscores.' };
+    }
+
+    // Check if tag exists
+    if (this.db.has(name.toLowerCase())) {
+      return { success: false, error: 'Tag already exists.' };
+    }
+
+    // Validate content
+    if (content.length > 2000) {
+      return { success: false, error: 'Tag content too long (max 2000 characters).' };
+    }
+
+    // Test parse the content
+    try {
+      await this.interpreter.run(content, {});
+    } catch (error) {
+      return { success: false, error: 'Invalid tag syntax.' };
+    }
+
+    // Save to database
+    this.db.set(name.toLowerCase(), {
+      name,
+      content,
+      author,
+      uses: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Execute a tag.
+   */
+  async executeTag(name, variables = {}) {
+    const tag = this.db.get(name.toLowerCase());
+    if (!tag) {
+      return null;
+    }
+
+    // Increment usage counter
+    tag.uses++;
+    tag.updatedAt = new Date();
+
+    // Execute the tag
+    return await this.interpreter.run(tag.content, variables);
+  }
+
+  /**
+   * Edit an existing tag.
+   */
+  async editTag(name, content, editor) {
+    const tag = this.db.get(name.toLowerCase());
+    if (!tag) {
+      return { success: false, error: 'Tag not found.' };
+    }
+
+    // Check permissions
+    if (tag.author !== editor) {
+      return { success: false, error: 'You can only edit your own tags.' };
+    }
+
+    // Validate new content
+    if (content.length > 2000) {
+      return { success: false, error: 'Tag content too long.' };
+    }
+
+    try {
+      await this.interpreter.run(content, {});
+    } catch (error) {
+      return { success: false, error: 'Invalid tag syntax.' };
+    }
+
+    // Update tag
+    tag.content = content;
+    tag.updatedAt = new Date();
+
+    return { success: true };
+  }
+
+  /**
+   * Delete a tag.
+   */
+  deleteTag(name, deleter) {
+    const tag = this.db.get(name.toLowerCase());
+    if (!tag) {
+      return { success: false, error: 'Tag not found.' };
+    }
+
+    if (tag.author !== deleter) {
+      return { success: false, error: 'You can only delete your own tags.' };
+    }
+
+    this.db.delete(name.toLowerCase());
+    return { success: true };
+  }
+
+  /**
+   * Get tag information.
+   */
+  getTagInfo(name) {
+    return this.db.get(name.toLowerCase()) || null;
+  }
+
+  /**
+   * List all tags.
+   */
+  listTags() {
+    return Array.from(this.db.values())
+      .sort((a, b) => b.uses - a.uses); // Sort by usage
+  }
+
+  /**
+   * Search tags by name.
+   */
+  searchTags(query) {
+    const lowerQuery = query.toLowerCase();
+    return Array.from(this.db.values())
+      .filter(tag => tag.name.toLowerCase().includes(lowerQuery));
+  }
+}
+
+module.exports = { TagSystem };
+```
+</Tabs>
+
+**Discord Bot Integration:**
+
+```ts showLineNumbers
+import { Client, ChatInputCommandInteraction } from 'discord.js';
+import { TagSystem } from './TagSystem';
+import { StringTransformer } from 'tagscript';
+import { MemberTransformer, GuildTransformer } from '@tagscript/plugin-discord';
+
+const tagSystem = new TagSystem();
+
+// Create tag command
+async function handleTagCreate(interaction: ChatInputCommandInteraction) {
+  const name = interaction.options.getString('name', true);
+  const content = interaction.options.getString('content', true);
+
+  const result = await tagSystem.createTag(name, content, interaction.user.id);
+  
+  if (result.success) {
+    await interaction.reply(`Tag '${name}' created successfully!`);
+  } else {
+    await interaction.reply(`Error: ${result.error}`);
+  }
+}
+
+// Execute tag command
+async function handleTagRun(interaction: ChatInputCommandInteraction) {
+  const name = interaction.options.getString('name', true);
+
+  const result = await tagSystem.executeTag(name, {
+    user: new StringTransformer(interaction.user.username),
+    member: new MemberTransformer(interaction.member as any),
+    guild: new GuildTransformer(interaction.guild!)
+  });
+
+  if (!result) {
+    await interaction.reply('Tag not found.');
+    return;
+  }
+
+  await interaction.reply(result.body);
+}
+```
+
+## Performance Optimization
+
+### Lazy Parsing
+
+```ts showLineNumbers
+/**
+ * Only parse tags when needed, skip sections that won't be shown.
+ */
+const conditionalTemplate = `
+{if({premium}==true):
+  {random: Premium greeting 1, Premium greeting 2}
+  {embed(title): Premium Features}
+  <!-- This section only parsed if premium is true -->
+|
+  Basic greeting
+}
+`;
+```
+
+### Parallel Execution
+
+<Callout type="info">
+TagScript parsers run sequentially, but you can run multiple templates in parallel for different users.
+</Callout>
+
+```ts showLineNumbers
+const results = await Promise.all(
+  users.map(user => 
+    ts.run(template, { user: new UserTransformer(user) })
+  )
+);
+```
+
+### Memory Management
+
+```ts showLineNumbers
+// Clear large variables after use
+const result = await ts.run(template, variables);
+const output = result.body;
+
+// Clear the result to free memory
+result.body = '';
+result.actions = {};
+
+return output;
+```
+
+## Security Best Practices
+
+### Input Sanitization
+
+```ts showLineNumbers
+function sanitizeUserInput(input: string): string {
+  return input
+    .replace(/@(everyone|here)/gi, '@\u200b$1') // Prevent mass mentions
+    .replace(/discord\.gg\/\w+/gi, '[invite removed]') // Remove invites
+    .slice(0, 2000); // Enforce length limit
+}
+```
+
+### Rate Limiting
+
+```ts showLineNumbers
+class RateLimiter {
+  private usages = new Map<string, number[]>();
+  private limit = 5; // 5 uses
+  private window = 60000; // per minute
+
+  public check(userId: string): boolean {
+    const now = Date.now();
+    const userUsages = this.usages.get(userId) || [];
+    
+    // Remove old usages outside the window
+    const recent = userUsages.filter(time => now - time < this.window);
+    
+    if (recent.length >= this.limit) {
+      return false; // Rate limited
+    }
+    
+    recent.push(now);
+    this.usages.set(userId, recent);
+    return true;
+  }
+}
+
+const limiter = new RateLimiter();
+
+if (!limiter.check(userId)) {
+  return 'Rate limited. Please try again later.';
+}
+```
+
+### Content Filtering
+
+```ts showLineNumbers
+const bannedWords = ['badword1', 'badword2'];
+
+function containsBannedWords(text: string): boolean {
+  const lower = text.toLowerCase();
+  return bannedWords.some(word => lower.includes(word));
+}
+
+if (containsBannedWords(tagContent)) {
+  return 'Tag contains inappropriate content.';
+}
+```
+
+## Next Steps
+
+- [Basic Usage Examples](/examples/basic-usage)
+- [Custom Parser Guide](/examples/custom-parsers)
+- [Plugin System](/plugins/overview)

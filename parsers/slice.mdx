@@ -1,0 +1,147 @@
+---
+title: SliceParser
+description: Parser that extracts substrings from text using start and end indices
+---
+
+# SliceParser
+
+The slice tag takes a string and returns a substring of it based on the provided start and end indices. This parser is useful for extracting portions of text or limiting string length.
+
+## Usage
+
+```typescript
+import { Interpreter, SliceParser } from 'tagscript';
+const ts = new Interpreter(new SliceParser());
+```
+
+## Syntax
+
+```yaml
+{slice(start):text}
+{slice(start-end):text}
+{slice(start,end):text}
+```
+
+<ParamField path="start" type="number" required>
+  The starting index (0-based, inclusive). Negative values count from the end.
+</ParamField>
+
+<ParamField path="end" type="number" optional>
+  The ending index (exclusive). If omitted, slices to the end of the string.
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The text to extract a substring from
+</ParamField>
+
+## Examples
+
+### Slice from Start Position
+
+```yaml
+{slice(3):Hello World}
+# lo World
+```
+
+### Slice with Range
+
+```yaml
+{slice(0-5):Hello World}
+# Hello
+```
+
+### Using Comma Separator
+
+```yaml
+{slice(6,11):Hello World}
+# World
+```
+
+### Extract First Few Characters
+
+```yaml
+{slice(0-3):Welcome to our server!}
+# Wel
+```
+
+### Negative Index
+
+```yaml
+{slice(-5):Hello World}
+# World
+```
+
+### Get File Extension
+
+```yaml
+{slice(-4):document.pdf}
+# .pdf
+```
+
+### Truncate Text
+
+```yaml
+{slice(0-50):This is a very long message that needs to be truncated...}
+# This is a very long message that needs to be tru
+```
+
+### Middle Extraction
+
+```yaml
+{slice(7-12):Welcome to the server!}
+# to th
+```
+
+## Aliases
+
+- `slice`
+- `substr`
+- `substring`
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns the extracted substring based on the provided indices.
+</ResponseField>
+
+## Implementation Details
+
+The parser uses JavaScript's native `String.slice()` method:
+
+```typescript
+if (!ctx.tag.parameter!.includes('-') && !ctx.tag.parameter!.includes(','))
+  return ctx.tag.payload!.slice(Number.parseInt(ctx.tag.parameter!, 10));
+
+const spl = ctx.tag.parameter!.includes('-') 
+  ? ctx.tag.parameter!.split('-') 
+  : ctx.tag.parameter!.split(',');
+const start = Number.parseInt(spl[0], 10);
+const end = Number.parseInt(spl[1], 10);
+return ctx.tag.payload!.slice(start, end);
+```
+
+## Use Cases
+
+- **Text Truncation**: Limit message length for previews
+- **Extract Portions**: Get specific parts of strings (file extensions, prefixes, etc.)
+- **Data Parsing**: Extract fields from formatted strings
+- **Username Display**: Show shortened usernames
+- **Content Preview**: Create previews of longer text
+
+## Notes
+
+- Start index is **inclusive**, end index is **exclusive**
+- Negative indices count from the end of the string (-1 is the last character)
+- If only start index is provided, slices from that position to the end
+- Both `-` and `,` can be used as separators for start and end
+- Out-of-bounds indices are handled gracefully by JavaScript's `slice()`
+- Uses JavaScript's `String.slice()` method internally
+
+## Index Behavior
+
+| Syntax | Start | End | Behavior |
+|--------|-------|-----|----------|
+| `{slice(3):text}` | 3 | end | From index 3 to end |
+| `{slice(0-5):text}` | 0 | 5 | From start to index 5 |
+| `{slice(-5):text}` | -5 | end | Last 5 characters |
+| `{slice(2-8):text}` | 2 | 8 | Characters from index 2 to 8 |

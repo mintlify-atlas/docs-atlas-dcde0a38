@@ -1,0 +1,212 @@
+---
+title: "Installation"
+description: "Install TagScript in your JavaScript or TypeScript project"
+---
+
+## Requirements
+
+TagScript requires Node.js version 14.0.0 or higher.
+
+<CodeGroup>
+```bash Check Node version
+node --version
+```
+</CodeGroup>
+
+If you need to upgrade Node.js, visit [nodejs.org](https://nodejs.org/) to download the latest version.
+
+## Install TagScript
+
+Install the core `tagscript` package using your preferred package manager:
+
+<CodeGroup>
+```bash npm
+npm install tagscript
+```
+
+```bash yarn
+yarn add tagscript
+```
+
+```bash pnpm
+pnpm add tagscript
+```
+</CodeGroup>
+
+## TypeScript Configuration
+
+TagScript is written in TypeScript and includes type definitions out of the box. No additional `@types` packages are needed.
+
+For the best development experience, ensure your `tsconfig.json` includes:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}
+```
+
+## Module Formats
+
+TagScript provides builds in multiple formats to support different JavaScript environments:
+
+<AccordionGroup>
+  <Accordion title="CommonJS (CJS)" icon="js">
+    For Node.js applications using `require()`:
+    
+    ```javascript
+    const { Interpreter, RandomParser } = require('tagscript');
+    ```
+    
+    This is the default format when you use `require()`.
+  </Accordion>
+  
+  <Accordion title="ES Modules (ESM)" icon="file-code">
+    For modern JavaScript applications using `import`:
+    
+    ```javascript
+    import { Interpreter, RandomParser } from 'tagscript';
+    ```
+    
+    This format is automatically used when your package.json has `"type": "module"` or when using `.mjs` files.
+  </Accordion>
+  
+  <Accordion title="UMD (Browser)" icon="globe">
+    For direct browser usage via CDN:
+    
+    ```html
+    <script src="https://unpkg.com/tagscript@latest/dist/index.global.js"></script>
+    <script>
+      const { Interpreter, RandomParser } = TagScript;
+    </script>
+    ```
+    
+    The UMD build exposes TagScript as a global variable.
+  </Accordion>
+</AccordionGroup>
+
+## Install Plugins
+
+TagScript has an ecosystem of plugins that add specialized functionality. Install them separately as needed:
+
+### Discord Plugin
+
+Adds Discord-specific parsers and transformers for building bot commands:
+
+<CodeGroup>
+```bash npm
+npm install @tagscript/plugin-discord
+```
+
+```bash yarn
+yarn add @tagscript/plugin-discord
+```
+
+```bash pnpm
+pnpm add @tagscript/plugin-discord
+```
+</CodeGroup>
+
+<Note>
+  The Discord plugin requires `discord.js` v14 or higher as a peer dependency.
+</Note>
+
+## Verify Installation
+
+Create a simple test file to verify TagScript is installed correctly:
+
+<CodeGroup>
+```typescript TypeScript
+import { Interpreter, RandomParser } from 'tagscript';
+
+const ts = new Interpreter(new RandomParser());
+
+const result = await ts.run('{random:Hello,Hi,Hey} World!');
+console.log(result.body);
+// Output: "Hello World!" or "Hi World!" or "Hey World!"
+```
+
+```javascript JavaScript (ESM)
+import { Interpreter, RandomParser } from 'tagscript';
+
+const ts = new Interpreter(new RandomParser());
+
+const result = await ts.run('{random:Hello,Hi,Hey} World!');
+console.log(result.body);
+// Output: "Hello World!" or "Hi World!" or "Hey World!"
+```
+
+```javascript JavaScript (CommonJS)
+const { Interpreter, RandomParser } = require('tagscript');
+
+(async () => {
+  const ts = new Interpreter(new RandomParser());
+  
+  const result = await ts.run('{random:Hello,Hi,Hey} World!');
+  console.log(result.body);
+  // Output: "Hello World!" or "Hi World!" or "Hey World!"
+})();
+```
+</CodeGroup>
+
+Run your test file:
+
+<CodeGroup>
+```bash Node.js
+node test.js
+```
+
+```bash TypeScript (with tsx)
+npx tsx test.ts
+```
+
+```bash TypeScript (with ts-node)
+npx ts-node test.ts
+```
+</CodeGroup>
+
+If you see a greeting message, TagScript is working correctly!
+
+## Development Dependencies
+
+For development, you may want to install additional tools:
+
+<CodeGroup>
+```bash TypeScript tools
+npm install --save-dev typescript @types/node tsx
+```
+
+```bash Testing tools
+npm install --save-dev vitest
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+    Build your first TagScript application with step-by-step examples
+  </Card>
+  
+  <Card title="Tag Syntax" icon="code" href="/core/tag-syntax">
+    Learn the syntax and structure of TagScript tags
+  </Card>
+  
+  <Card title="Built-in Parsers" icon="toolbox" href="/parsers/overview">
+    Explore all available parsers and what they do
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api/interpreter">
+    Dive into the complete API documentation
+  </Card>
+</CardGroup>
+
+<Tip>
+  Having trouble? Check out the [GitHub repository](https://github.com/imranbarbhuiya/TagScript) for examples and issue tracking.
+</Tip>

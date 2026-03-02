@@ -1,0 +1,219 @@
+---
+title: BreakParser
+description: Parser that forces tag output based on conditional expressions
+---
+
+# BreakParser
+
+The break tag will force the tag output to only be the payload of this tag, if the passed expression evaluates true. If no message is provided to the payload, the tag output will be empty. This differs from the [StopParser](/parsers/stop) as the stop tag stops all TagScript parsing and returns its message while the break tag continues to parse tags. If any other tags exist after the break tag, they will still execute.
+
+## Usage
+
+```typescript
+import { Interpreter, BreakParser } from 'tagscript';
+const ts = new Interpreter(new BreakParser());
+```
+
+## Syntax
+
+```yaml
+{break(expression):message}
+```
+
+<ParamField path="expression" type="string" required>
+  A conditional expression using comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`). If true, the output is replaced with the message.
+</ParamField>
+
+<ParamField path="message" type="string" optional>
+  The message to set as the entire output. If omitted, output will be empty.
+</ParamField>
+
+## Examples
+
+### Basic Usage
+
+```yaml
+{break({args}==):You did not provide any input.}
+# If args is empty, output is only: "You did not provide any input."
+```
+
+### With Empty Message
+
+```yaml
+This text will not show {break({condition}==true):}
+# If condition is true, entire output becomes empty
+```
+
+### Validation Check
+
+```yaml
+{break({age}<18):Access denied. You must be 18 or older.}
+Welcome to the adult section!
+# If age < 18, only shows: "Access denied. You must be 18 or older."
+# If age >= 18, shows: "Welcome to the adult section!"
+```
+
+### Input Validation
+
+```yaml
+{break({input}==):Error: Input cannot be empty}
+{break({input}==invalid):Error: Invalid input provided}
+Processing: {input}
+# Breaks early if input is empty or "invalid"
+```
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns an empty string. If the expression is true, sets `ctx.response.body` to the payload message.
+</ResponseField>
+
+## Break vs Stop
+
+| Feature | BreakParser | StopParser |
+|---------|-------------|------------|
+| Effect | Sets output to payload | Throws error, halts all parsing |
+| Other tags | Still execute | Immediately stops |
+| Use case | Controlled output override | Emergency halt |
+| Error | No error thrown | Throws error |
+
+### Example Comparison
+
+```yaml
+# BreakParser
+{=(var):test}
+{break({condition}==true):Override message}
+{var} will still be processed
+# Output if true: "Override message" (but {var} was still set)
+
+# StopParser
+{=(var):test}
+{stop({condition}==true):Stop message}
+{var} will NOT be processed
+# Output if true: "Stop message" (and parsing stops immediately)
+```
+
+## Implementation Details
+
+```typescript
+public parse(ctx: Context) {
+  if (parseIf(ctx.tag.parameter!)) 
+    ctx.response.body = ctx.tag.payload ?? '';
+  return '';
+}
+```
+
+The parser:
+1. Evaluates the expression using `parseIf()`
+2. If true, sets `ctx.response.body` to the payload (or empty string)
+3. Always returns empty string (doesn't affect current tag output)
+4. Continues processing other tags
+
+## Use Cases
+
+### Input Validation
+
+```yaml
+{break({username}==):Please provide a username}
+{break({password}==):Please provide a password}
+Logging in user: {username}
+```
+
+### Permission Checks
+
+```yaml
+{break({user.role}!=admin):Access denied. Admin only.}
+Admin Panel - Welcome {user.name}
+```
+
+### Error Handling
+
+```yaml
+{break({error}!=):Error occurred: {error}}
+Operation completed successfully!
+```
+
+### Conditional Output
+
+```yaml
+{break({mode}==silent):}
+Verbose output: Processing {item}...
+# If mode is "silent", shows nothing
+# Otherwise shows verbose output
+```
+
+## Supported Operators
+
+The expression parameter supports these comparison operators:
+
+| Operator | Check | Example |
+|----------|-------|--------|
+| == | equality | `{args}==test` |
+| != | inequality | `{value}!=0` |
+| > | greater than | `{count}>10` |
+| &lt; | less than | `{age}<18` |
+| >= | greater than or equal | `{score}>=100` |
+| &lt;= | less than or equal | `{level}<=5` |
+
+## Advanced Examples
+
+### Multiple Break Conditions
+
+```yaml
+{break({status}==error):Error: {error_message}}
+{break({status}==warning):Warning: {warning_message}}
+Success: {success_message}
+# First matching break condition wins
+```
+
+### Nested with Other Parsers
+
+```yaml
+{=(authenticated):{if({token}!=):true|false}}
+{break({authenticated}==false):Authentication required}
+Welcome, authenticated user!
+```
+
+### Form Validation
+
+```yaml
+{break({email}==):Missing required field: email}
+{break({name}==):Missing required field: name}
+{break({age}<13):You must be at least 13 years old}
+Registration successful for {name}!
+```
+
+## Notes
+
+- Returns empty string (doesn't directly output text)
+- Sets `ctx.response.body` to override final output
+- Other tags continue to execute (unlike StopParser)
+- Payload is optional (omit for empty output)
+- Expression is required and must evaluate to boolean
+- First break that triggers wins (subsequent breaks are ignored)
+- Doesn't throw errors (unlike StopParser)
+
+## Common Patterns
+
+### Early Exit with Message
+
+```yaml
+{break({condition}==true):Early exit message}
+... rest of template ...
+```
+
+### Silent Mode
+
+```yaml
+{break({silent}==true):}
+... verbose output ...
+```
+
+### Validation Chain
+
+```yaml
+{break({step1}==fail):Step 1 failed}
+{break({step2}==fail):Step 2 failed}
+{break({step3}==fail):Step 3 failed}
+All steps passed!
+```

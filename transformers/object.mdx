@@ -1,0 +1,319 @@
+---
+title: SafeObjectTransformer
+description: Safely access object properties and nested values in TagScript
+---
+
+# SafeObjectTransformer
+
+The `SafeObjectTransformer` safely transforms objects by providing access to their properties while removing methods (except `toString`) and private properties.
+
+## Overview
+
+SafeObjectTransformer enables you to:
+- Access object properties using tag parameters
+- Navigate nested object structures with dot notation
+- Automatically block access to private properties (those starting with `_`)
+- Safely serialize objects by removing methods
+- Return string representation using the object's `toString` method
+
+## Constructor
+
+<ParamField path="obj" type="Record<string, unknown> | string" required>
+  The object to transform. Can be a JavaScript object or a JSON string. The object is automatically sanitized to remove methods and private properties.
+</ParamField>
+
+```typescript
+import { SafeObjectTransformer } from 'tagscript';
+
+// From object
+const user = new SafeObjectTransformer({ 
+  name: 'Alice', 
+  age: 30,
+  address: {
+    city: 'New York',
+    zip: '10001'
+  }
+});
+
+// From JSON string
+const config = new SafeObjectTransformer('{"theme":"dark","lang":"en"}');
+```
+
+## Transform Method
+
+The `transform` method is called automatically by the interpreter when a variable using this transformer is encountered.
+
+```typescript
+transform(tag: Lexer): string | null
+```
+
+- **tag.parameter** - Property path to access (e.g., `"name"`, `"address.city"`)
+- **Returns** - The property value as a string, or `null` if not found or blocked
+
+## Usage Examples
+
+<Note>
+SafeObjectTransformer requires `StrictVarsParser` to function properly.
+</Note>
+
+### Basic Property Access
+
+Access top-level object properties:
+
+```typescript
+import { Interpreter, SafeObjectTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const user = new SafeObjectTransformer({ 
+  name: 'Alice', 
+  age: 30 
+});
+
+await ts.run('{user(name)}', { user });
+// Output: Alice
+
+await ts.run('{user(age)}', { user });
+// Output: 30
+```
+
+### Object toString Representation
+
+Access the object without parameters to get its string representation:
+
+```typescript
+const user = new SafeObjectTransformer({ 
+  name: 'Bob',
+  toString() {
+    return `User: ${this.name}`;
+  }
+});
+
+await ts.run('{user}', { user });
+// Output: User: Bob
+```
+
+### Nested Property Access
+
+Use dot notation to access nested properties:
+
+```typescript
+const user = new SafeObjectTransformer({
+  name: 'Charlie',
+  address: {
+    city: 'New York',
+    country: 'USA',
+    coordinates: {
+      lat: 40.7128,
+      lng: -74.0060
+    }
+  }
+});
+
+await ts.run('{user(address.city)}', { user });
+// Output: New York
+
+await ts.run('{user(address.coordinates.lat)}', { user });
+// Output: 40.7128
+```
+
+### Private Property Protection
+
+Properties starting with `_` are automatically blocked:
+
+```typescript
+const data = new SafeObjectTransformer({
+  public: 'visible',
+  _private: 'hidden'
+});
+
+await ts.run('{data(public)}', { data });
+// Output: visible
+
+await ts.run('{data(_private)}', { data });
+// Output: (empty - returns null)
+```
+
+### Method Removal
+
+Methods are automatically removed from the object (except `toString`):
+
+```typescript
+const obj = new SafeObjectTransformer({
+  value: 42,
+  dangerous() {
+    return 'This will be removed';
+  },
+  toString() {
+    return 'Safe toString is preserved';
+  }
+});
+
+await ts.run('{obj(value)}', { obj });
+// Output: 42
+
+await ts.run('{obj(dangerous)}', { obj });
+// Output: (empty - method was removed)
+
+await ts.run('{obj}', { obj });
+// Output: Safe toString is preserved
+```
+
+## Tag Syntax for End Users
+
+When using SafeObjectTransformer variables in templates:
+
+```yaml
+# Get string representation
+{variable}
+
+# Access property
+{variable(property)}
+
+# Access nested property
+{variable(parent.child)}
+{variable(level1.level2.level3)}
+```
+
+## Behavior Details
+
+### Property Access
+- **Top-level properties** - Access directly: `{obj(name)}`
+- **Nested properties** - Use dot notation: `{obj(user.email)}`
+- **Missing properties** - Returns `null` (no output)
+- **Private properties** - Properties starting with `_` return `null`
+
+### Object Sanitization
+- **JSON serialization** - Objects are serialized to JSON and parsed back to remove methods
+- **toString preservation** - The original `toString` method is preserved and bound to the original object
+- **Type conversion** - All values are converted to strings when returned
+
+### Examples with Different Structures
+
+```typescript
+const complex = new SafeObjectTransformer({
+  user: {
+    profile: {
+      name: 'David',
+      settings: {
+        theme: 'dark',
+        notifications: true
+      }
+    }
+  },
+  _internal: 'blocked'
+});
+
+await ts.run('{data(user.profile.name)}', { data: complex });
+// Output: David
+
+await ts.run('{data(user.profile.settings.theme)}', { data: complex });
+// Output: dark
+
+await ts.run('{data(_internal)}', { data: complex });
+// Output: (empty)
+```
+
+## Common Use Cases
+
+### User Profiles
+
+```typescript
+const user = new SafeObjectTransformer({
+  username: 'alice',
+  email: 'alice@example.com',
+  profile: {
+    bio: 'Software developer',
+    location: 'San Francisco'
+  }
+});
+
+const template = `
+Username: {user(username)}
+Email: {user(email)}
+Bio: {user(profile.bio)}
+`;
+
+await ts.run(template, { user });
+```
+
+### Configuration Objects
+
+```typescript
+const config = new SafeObjectTransformer({
+  app: {
+    name: 'MyApp',
+    version: '1.0.0'
+  },
+  features: {
+    darkMode: true,
+    analytics: false
+  }
+});
+
+await ts.run('App: {config(app.name)} v{config(app.version)}', { config });
+// Output: App: MyApp v1.0.0
+```
+
+### API Response Data
+
+```typescript
+const response = new SafeObjectTransformer({
+  data: {
+    items: {
+      count: 42,
+      total: 100
+    },
+    meta: {
+      page: 1
+    }
+  }
+});
+
+await ts.run('Showing {response(data.items.count)} of {response(data.items.total)}', { response });
+// Output: Showing 42 of 100
+```
+
+## Security Considerations
+
+### What is Protected
+- Methods are removed (except `toString`)
+- Private properties (starting with `_`) are blocked
+- Object is deeply cloned via JSON serialization
+
+### What is Not Protected
+- Public properties are accessible
+- Nested objects follow the same rules
+- String values are returned as-is (no escaping)
+
+### Best Practices
+
+```typescript
+// Good: Use private properties for sensitive data
+const data = new SafeObjectTransformer({
+  public: 'safe',
+  _secret: 'protected'  // Cannot be accessed
+});
+
+// Good: Combine with StringTransformer escaping for user input
+const userInput = new SafeObjectTransformer({
+  comment: new StringTransformer(userComment, true)
+});
+
+// Caution: Public properties are accessible
+const data = new SafeObjectTransformer({
+  apiKey: 'sensitive'  // Will be accessible!
+});
+```
+
+## Implementation Reference
+
+The SafeObjectTransformer is implemented at:
+`~/workspace/source/packages/tagscript/src/lib/Transformer/Object.ts:8`
+
+## Related
+
+- [StringTransformer](/transformers/string) - For string transformations
+- [IntegerTransformer](/transformers/integer) - For numeric transformations
+- [FunctionTransformer](/transformers/function) - For custom transformation logic
+- [StrictVarsParser](/parsers/strict-vars) - Required parser for transformers

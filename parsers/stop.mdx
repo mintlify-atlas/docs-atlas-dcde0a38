@@ -1,0 +1,285 @@
+---
+title: StopParser
+description: Parser that halts all tag processing when conditions are met
+---
+
+# StopParser
+
+The stop tag stops tag processing if the given parameter evaluates to true. If a message is passed to the payload, it will return that message instead of an empty string. This tag throws an error to halt all further processing, unlike the [BreakParser](/parsers/break) which only affects the current tag output.
+
+## Usage
+
+```typescript
+import { Interpreter, StopParser } from 'tagscript';
+const ts = new Interpreter(new StopParser());
+```
+
+## Syntax
+
+```yaml
+{stop(expression):message}
+{halt(expression):message}
+{error(expression):message}
+```
+
+<ParamField path="expression" type="string" required>
+  A conditional expression using comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`). If true, parsing stops immediately.
+</ParamField>
+
+<ParamField path="message" type="string" optional>
+  The error message to return. If omitted, returns empty string.
+</ParamField>
+
+## Examples
+
+### Basic Validation
+
+```yaml
+{stop({args}!=10):You didn't provide valid input.}
+# if {args} is not 10
+You didn't provide valid input.
+# if {args} is 10
+Processing continues normally
+```
+
+### Access Control
+
+```yaml
+{stop({user.id}==12345):Access denied for this user.}
+Welcome to the admin panel!
+# If user.id is 12345, stops and shows "Access denied for this user."
+```
+
+### Empty Input Check
+
+```yaml
+{stop({input}==):Error: Input cannot be empty}
+Processing: {input}
+# Stops if input is empty
+```
+
+### Age Verification
+
+```yaml
+{stop({age}<18):You must be 18 or older to access this content.}
+Welcome to the adult section!
+```
+
+## Return Value
+
+<ResponseField name="return" type="string">
+  Returns an empty string normally. Throws an error with the message if the expression is true, halting all parsing.
+</ResponseField>
+
+## Stop vs Break
+
+| Feature | StopParser | BreakParser |
+|---------|------------|-------------|
+| Effect | Throws error, halts ALL parsing | Sets output, continues parsing |
+| Other tags | Never execute | Still execute |
+| Use case | Emergency halt, critical errors | Controlled output override |
+| Error | Throws error | No error |
+
+### Example Comparison
+
+```yaml
+# StopParser
+{=(var):test}
+{stop({condition}==true):Stop message}
+{var} will NOT be processed  # Parsing stops here!
+# Output if true: "Stop message" (error thrown)
+
+# BreakParser
+{=(var):test}
+{break({condition}==true):Break message}
+{var} will still be processed
+# Output if true: "Break message" (but tags still run)
+```
+
+## Implementation Details
+
+```typescript
+public parse(ctx: Context) {
+  if (parseIf(ctx.tag.parameter!)) 
+    throw new Error(ctx.tag.payload ?? '');
+  return '';
+}
+```
+
+The parser:
+1. Evaluates the expression using `parseIf()`
+2. If true, throws an error with the payload message
+3. If false, returns empty string and continues
+4. Error stops all further tag processing
+
+## Use Cases
+
+### Input Validation
+
+```yaml
+{stop({username}==):Username is required}
+{stop({password}==):Password is required}
+Logging in {username}...
+```
+
+### Permission Checks
+
+```yaml
+{stop({user.role}!=admin):Access denied. Admins only.}
+{stop({user.banned}==true):Your account has been banned.}
+Admin Dashboard
+```
+
+### Rate Limiting
+
+```yaml
+{stop({requests}>100):Rate limit exceeded. Try again later.}
+Processing request...
+```
+
+### Data Validation
+
+```yaml
+{stop({data}==null):No data available}
+{stop({data.status}==error):Data fetch failed: {data.message}}
+Displaying: {data.content}
+```
+
+## Aliases
+
+- `stop`
+- `halt`
+- `error`
+
+## Supported Operators
+
+The expression parameter supports these comparison operators:
+
+| Operator | Check | Example |
+|----------|-------|--------|
+| == | equality | `{value}==error` |
+| != | inequality | `{status}!=ok` |
+| > | greater than | `{count}>1000` |
+| &lt; | less than | `{age}<13` |
+| >= | greater than or equal | `{score}>=100` |
+| &lt;= | less than or equal | `{attempts}<=3` |
+
+## Advanced Examples
+
+### Multiple Stop Conditions
+
+```yaml
+{stop({status}==error):Error: {error_msg}}
+{stop({status}==offline):Service is currently offline}
+{stop({status}==maintenance):Under maintenance}
+Service is running normally
+```
+
+### Nested Validation
+
+```yaml
+{stop({user}==):Not logged in}
+{stop({user.verified}!=true):Email not verified}
+{stop({user.active}!=true):Account not active}
+Welcome, {user.name}!
+```
+
+### Guard Clauses
+
+```yaml
+{stop({token}==):Authentication token missing}
+{stop({token.expired}==true):Token has expired}
+{stop({token.valid}!=true):Invalid token}
+Authenticated successfully
+```
+
+## Error Handling
+
+When StopParser throws an error, you can catch it:
+
+```typescript
+try {
+  const result = await ts.run(template, variables);
+  console.log(result.body);
+} catch (error) {
+  console.error('Parsing stopped:', error.message);
+  // Handle the stop error
+}
+```
+
+## Notes
+
+- **Throws error**: Uses `throw new Error()` to halt processing
+- **Immediate halt**: No further tags are processed after stop
+- **Error message**: Payload becomes the error message
+- **Empty message**: If no payload, throws empty error
+- **Expression required**: Parameter must be a valid conditional expression
+- **First match**: First stop condition that triggers halts everything
+- **Catch errors**: Wrap interpreter calls in try-catch to handle stops
+
+## Common Patterns
+
+### Guard Pattern
+
+```yaml
+{stop({authenticated}!=true):Not authenticated}
+{stop({authorized}!=true):Not authorized}
+... protected content ...
+```
+
+### Validation Chain
+
+```yaml
+{stop({field1}==):Missing field1}
+{stop({field2}==):Missing field2}
+{stop({field3}==):Missing field3}
+All fields validated!
+```
+
+### Error First
+
+```yaml
+{stop({error}!=):Error: {error}}
+{stop({warning}!=):Warning: {warning}}
+Success: {data}
+```
+
+## Best Practices
+
+### 1. Use for Critical Errors
+
+Use StopParser for conditions that should halt all processing:
+
+```yaml
+{stop({critical_error}==true):CRITICAL: System failure}
+```
+
+### 2. Provide Clear Messages
+
+Always include descriptive error messages:
+
+```yaml
+{stop({user}==):Error: User authentication required. Please log in.}
+```
+
+### 3. Check Early
+
+Place stop conditions at the beginning:
+
+```yaml
+{stop({maintenance}==true):Site under maintenance}}
+... rest of template ...
+```
+
+### 4. Handle Errors
+
+Always wrap in try-catch when using StopParser:
+
+```typescript
+try {
+  const result = await interpreter.run(template, vars);
+} catch (error) {
+  // Handle gracefully
+  return { error: error.message };
+}
+```

@@ -1,0 +1,807 @@
+---
+title: Creating Custom Parsers
+description: Learn how to create custom parsers by implementing the IParser interface
+---
+
+# Creating Custom Parsers
+
+Learn how to extend TagScript by creating custom parsers that implement your own tag syntax and behavior.
+
+## Understanding Parsers
+
+Parsers are the core building blocks of TagScript. They:
+
+1. **Accept** tags based on declaration, parameters, and payload
+2. **Process** the tag content
+3. **Return** a string or modify the response context
+
+### Parser Lifecycle
+
+When the Interpreter encounters a tag like `{myparser(param): payload}`:
+
+<Steps>
+
+### Check Acceptance
+
+The Interpreter calls `willAccept(ctx)` to see if this parser handles the tag.
+
+### Parse Content
+
+If accepted, the Interpreter calls `parse(ctx)` to process the tag.
+
+### Return Result
+
+The parser returns a string to replace the tag, or stores data in `ctx.response.actions`.
+
+</Steps>
+
+## IParser Interface
+
+All parsers must implement the `IParser` interface:
+
+```ts
+interface IParser {
+  willAccept(ctx: Context): boolean;
+  parse(ctx: Context): string | Promise<string>;
+}
+```
+
+### Context Object
+
+The `Context` object provides access to:
+
+```ts
+interface Context {
+  tag: {
+    declaration: string;  // Tag name (e.g., 'myparser')
+    parameter: string | null;  // Content in parentheses
+    payload: string | null;  // Content after colon
+  };
+  response: {
+    body: string;  // Current output
+    actions: Record<string, any>;  // Store data for later use
+  };
+}
+```
+
+## Basic Custom Parser
+
+Let's create a simple parser that converts text to uppercase.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+/**
+ * Converts text to uppercase.
+ * 
+ * Usage: {upper: hello world}
+ * Output: HELLO WORLD
+ */
+export class UpperParser extends BaseParser implements IParser {
+  public constructor() {
+    // Accept 'upper' tag, no required parameter, requires payload
+    super(['upper'], false, true);
+  }
+
+  public parse(ctx: Context): string {
+    // Get the payload and convert to uppercase
+    const text = ctx.tag.payload!;
+    return text.toUpperCase();
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { BaseParser } = require('tagscript');
+
+/**
+ * Converts text to uppercase.
+ * 
+ * Usage: {upper: hello world}
+ * Output: HELLO WORLD
+ */
+class UpperParser extends BaseParser {
+  constructor() {
+    // Accept 'upper' tag, no required parameter, requires payload
+    super(['upper'], false, true);
+  }
+
+  parse(ctx) {
+    // Get the payload and convert to uppercase
+    const text = ctx.tag.payload;
+    return text.toUpperCase();
+  }
+}
+
+module.exports = { UpperParser };
+```
+</Tabs>
+
+### Using the Custom Parser
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { Interpreter } from 'tagscript';
+import { UpperParser } from './UpperParser';
+
+const ts = new Interpreter(new UpperParser());
+
+const result = await ts.run('{upper: hello world}');
+console.log(result.body); // "HELLO WORLD"
+```
+```js tab="JavaScript" showLineNumbers
+const { Interpreter } = require('tagscript');
+const { UpperParser } = require('./UpperParser');
+
+const ts = new Interpreter(new UpperParser());
+
+const result = await ts.run('{upper: hello world}');
+console.log(result.body); // "HELLO WORLD"
+```
+</Tabs>
+
+## Parser with Parameters
+
+Create a parser that uses both parameters and payload.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+/**
+ * Repeats text a specified number of times.
+ * 
+ * Usage: {repeat(3): Hello}
+ * Output: HelloHelloHello
+ */
+export class RepeatParser extends BaseParser implements IParser {
+  public constructor() {
+    // Accept 'repeat', require parameter, require payload
+    super(['repeat'], true, true);
+  }
+
+  public parse(ctx: Context): string {
+    const times = parseInt(ctx.tag.parameter!, 10);
+    const text = ctx.tag.payload!;
+
+    // Validate the parameter
+    if (isNaN(times) || times < 0 || times > 100) {
+      return '[Invalid repeat count]';
+    }
+
+    return text.repeat(times);
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { BaseParser } = require('tagscript');
+
+/**
+ * Repeats text a specified number of times.
+ * 
+ * Usage: {repeat(3): Hello}
+ * Output: HelloHelloHello
+ */
+class RepeatParser extends BaseParser {
+  constructor() {
+    // Accept 'repeat', require parameter, require payload
+    super(['repeat'], true, true);
+  }
+
+  parse(ctx) {
+    const times = parseInt(ctx.tag.parameter, 10);
+    const text = ctx.tag.payload;
+
+    // Validate the parameter
+    if (isNaN(times) || times < 0 || times > 100) {
+      return '[Invalid repeat count]';
+    }
+
+    return text.repeat(times);
+  }
+}
+
+module.exports = { RepeatParser };
+```
+</Tabs>
+
+**Usage:**
+
+```ts showLineNumbers
+const result1 = await ts.run('{repeat(3): Ha}');
+console.log(result1.body); // "HaHaHa"
+
+const result2 = await ts.run('{repeat(2): Echo! }');
+console.log(result2.body); // "Echo! Echo! "
+```
+
+## Advanced Parser with Actions
+
+Parsers can store data in `ctx.response.actions` for use after parsing.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+/**
+ * Sets metadata that can be used after parsing.
+ * 
+ * Usage: {meta(author): John Doe}
+ * Stores in response.actions.metadata
+ */
+export class MetadataParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['meta', 'metadata'], true, true);
+  }
+
+  public parse(ctx: Context): string {
+    const key = ctx.tag.parameter!;
+    const value = ctx.tag.payload!;
+
+    // Initialize metadata object if it doesn't exist
+    if (!ctx.response.actions.metadata) {
+      ctx.response.actions.metadata = {};
+    }
+
+    // Store the key-value pair
+    ctx.response.actions.metadata[key] = value;
+
+    // Return empty string (metadata doesn't output text)
+    return '';
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { BaseParser } = require('tagscript');
+
+/**
+ * Sets metadata that can be used after parsing.
+ * 
+ * Usage: {meta(author): John Doe}
+ * Stores in response.actions.metadata
+ */
+class MetadataParser extends BaseParser {
+  constructor() {
+    super(['meta', 'metadata'], true, true);
+  }
+
+  parse(ctx) {
+    const key = ctx.tag.parameter;
+    const value = ctx.tag.payload;
+
+    // Initialize metadata object if it doesn't exist
+    if (!ctx.response.actions.metadata) {
+      ctx.response.actions.metadata = {};
+    }
+
+    // Store the key-value pair
+    ctx.response.actions.metadata[key] = value;
+
+    // Return empty string (metadata doesn't output text)
+    return '';
+  }
+}
+
+module.exports = { MetadataParser };
+```
+</Tabs>
+
+**Usage:**
+
+```ts showLineNumbers
+const result = await ts.run(`
+{meta(author): Jane Smith}
+{meta(version): 1.0.0}
+{meta(category): Tutorial}
+
+This is the document content.
+`);
+
+console.log(result.body.trim());
+// "This is the document content."
+
+console.log(result.actions.metadata);
+// {
+//   author: 'Jane Smith',
+//   version: '1.0.0',
+//   category: 'Tutorial'
+// }
+```
+
+## Async Parser
+
+Parsers can be asynchronous for API calls or database queries.
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+/**
+ * Fetches data from an API.
+ * 
+ * Usage: {fetch: https://api.example.com/data}
+ * Output: API response
+ */
+export class FetchParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['fetch'], false, true);
+  }
+
+  public async parse(ctx: Context): Promise<string> {
+    const url = ctx.tag.payload!;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return `[HTTP ${response.status}]`;
+      }
+
+      const data = await response.json();
+      return JSON.stringify(data);
+    } catch (error) {
+      return '[Fetch failed]';
+    }
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { BaseParser } = require('tagscript');
+
+/**
+ * Fetches data from an API.
+ * 
+ * Usage: {fetch: https://api.example.com/data}
+ * Output: API response
+ */
+class FetchParser extends BaseParser {
+  constructor() {
+    super(['fetch'], false, true);
+  }
+
+  async parse(ctx) {
+    const url = ctx.tag.payload;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return `[HTTP ${response.status}]`;
+      }
+
+      const data = await response.json();
+      return JSON.stringify(data);
+    } catch (error) {
+      return '[Fetch failed]';
+    }
+  }
+}
+
+module.exports = { FetchParser };
+```
+</Tabs>
+
+## Complex Parser Example
+
+A complete example showing multiple features:
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { BaseParser, split, type Context, type IParser } from 'tagscript';
+
+interface ColorOptions {
+  format: 'hex' | 'rgb' | 'name';
+  value: string;
+}
+
+/**
+ * Processes color values with different formats.
+ * 
+ * Usage:
+ * {color(hex): #FF5733}
+ * {color(rgb): 255, 87, 51}
+ * {color(name): red}
+ */
+export class ColorParser extends BaseParser implements IParser {
+  private readonly namedColors: Record<string, string> = {
+    red: '#FF0000',
+    green: '#00FF00',
+    blue: '#0000FF',
+    yellow: '#FFFF00',
+    purple: '#800080',
+    orange: '#FFA500'
+  };
+
+  public constructor() {
+    super(['color', 'colour'], true, true);
+  }
+
+  public parse(ctx: Context): string {
+    const format = ctx.tag.parameter!.toLowerCase() as ColorOptions['format'];
+    const value = ctx.tag.payload!.trim();
+
+    let hexColor: string;
+
+    switch (format) {
+      case 'hex':
+        hexColor = this.validateHex(value);
+        break;
+      case 'rgb':
+        hexColor = this.rgbToHex(value);
+        break;
+      case 'name':
+        hexColor = this.namedColors[value.toLowerCase()] || '#000000';
+        break;
+      default:
+        return '[Invalid color format]';
+    }
+
+    // Store color in actions for later use
+    if (!ctx.response.actions.colors) {
+      ctx.response.actions.colors = [];
+    }
+    ctx.response.actions.colors.push(hexColor);
+
+    return hexColor;
+  }
+
+  private validateHex(hex: string): string {
+    // Add # if missing
+    if (!hex.startsWith('#')) {
+      hex = '#' + hex;
+    }
+
+    // Validate hex format
+    if (/^#[0-9A-F]{6}$/i.test(hex)) {
+      return hex.toUpperCase();
+    }
+
+    return '#000000'; // Default to black if invalid
+  }
+
+  private rgbToHex(rgb: string): string {
+    const parts = split(rgb).map(p => parseInt(p, 10));
+    
+    if (parts.length !== 3 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+      return '#000000';
+    }
+
+    const [r, g, b] = parts;
+    return '#' + [r, g, b]
+      .map(x => x.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { BaseParser, split } = require('tagscript');
+
+/**
+ * Processes color values with different formats.
+ * 
+ * Usage:
+ * {color(hex): #FF5733}
+ * {color(rgb): 255, 87, 51}
+ * {color(name): red}
+ */
+class ColorParser extends BaseParser {
+  constructor() {
+    super(['color', 'colour'], true, true);
+    
+    this.namedColors = {
+      red: '#FF0000',
+      green: '#00FF00',
+      blue: '#0000FF',
+      yellow: '#FFFF00',
+      purple: '#800080',
+      orange: '#FFA500'
+    };
+  }
+
+  parse(ctx) {
+    const format = ctx.tag.parameter.toLowerCase();
+    const value = ctx.tag.payload.trim();
+
+    let hexColor;
+
+    switch (format) {
+      case 'hex':
+        hexColor = this.validateHex(value);
+        break;
+      case 'rgb':
+        hexColor = this.rgbToHex(value);
+        break;
+      case 'name':
+        hexColor = this.namedColors[value.toLowerCase()] || '#000000';
+        break;
+      default:
+        return '[Invalid color format]';
+    }
+
+    // Store color in actions for later use
+    if (!ctx.response.actions.colors) {
+      ctx.response.actions.colors = [];
+    }
+    ctx.response.actions.colors.push(hexColor);
+
+    return hexColor;
+  }
+
+  validateHex(hex) {
+    // Add # if missing
+    if (!hex.startsWith('#')) {
+      hex = '#' + hex;
+    }
+
+    // Validate hex format
+    if (/^#[0-9A-F]{6}$/i.test(hex)) {
+      return hex.toUpperCase();
+    }
+
+    return '#000000'; // Default to black if invalid
+  }
+
+  rgbToHex(rgb) {
+    const parts = split(rgb).map(p => parseInt(p, 10));
+    
+    if (parts.length !== 3 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+      return '#000000';
+    }
+
+    const [r, g, b] = parts;
+    return '#' + [r, g, b]
+      .map(x => x.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
+  }
+}
+
+module.exports = { ColorParser };
+```
+</Tabs>
+
+**Usage:**
+
+```ts showLineNumbers
+import { Interpreter } from 'tagscript';
+import { ColorParser } from './ColorParser';
+
+const ts = new Interpreter(new ColorParser());
+
+const result = await ts.run(`
+Primary: {color(name): red}
+Custom: {color(hex): FF5733}
+RGB: {color(rgb): 100, 150, 200}
+`);
+
+console.log(result.body);
+// "Primary: #FF0000
+// Custom: #FF5733
+// RGB: #6496C8"
+
+console.log(result.actions.colors);
+// ['#FF0000', '#FF5733', '#6496C8']
+```
+
+## Custom willAccept Implementation
+
+Override `willAccept` for complex acceptance logic:
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { BaseParser, type Context, type IParser } from 'tagscript';
+
+/**
+ * Only accepts tags on specific days of the week.
+ */
+export class WeekdayParser extends BaseParser implements IParser {
+  public constructor() {
+    super(['weekday'], false, false);
+  }
+
+  public willAccept(ctx: Context): boolean {
+    // First check the base acceptance (tag name)
+    if (!super.willAccept(ctx)) {
+      return false;
+    }
+
+    // Additional custom logic
+    const day = new Date().getDay();
+    // Only accept Monday-Friday (1-5)
+    return day >= 1 && day <= 5;
+  }
+
+  public parse(ctx: Context): string {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[new Date().getDay()];
+  }
+}
+```
+```js tab="JavaScript" showLineNumbers
+const { BaseParser } = require('tagscript');
+
+/**
+ * Only accepts tags on specific days of the week.
+ */
+class WeekdayParser extends BaseParser {
+  constructor() {
+    super(['weekday'], false, false);
+  }
+
+  willAccept(ctx) {
+    // First check the base acceptance (tag name)
+    if (!super.willAccept(ctx)) {
+      return false;
+    }
+
+    // Additional custom logic
+    const day = new Date().getDay();
+    // Only accept Monday-Friday (1-5)
+    return day >= 1 && day <= 5;
+  }
+
+  parse(ctx) {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[new Date().getDay()];
+  }
+}
+
+module.exports = { WeekdayParser };
+```
+</Tabs>
+
+## Best Practices
+
+<Callout type="info">
+**Parser Design Guidelines**
+
+1. **Single Responsibility**: Each parser should handle one specific task
+2. **Validation**: Always validate parameters and payload
+3. **Error Handling**: Return user-friendly error messages, don't throw
+4. **Documentation**: Add JSDoc comments explaining usage
+5. **Aliases**: Support multiple tag names for the same functionality
+</Callout>
+
+### Input Validation
+
+```ts showLineNumbers
+public parse(ctx: Context): string {
+  // Check for required data
+  if (!ctx.tag.payload) {
+    return '[Missing payload]';
+  }
+
+  // Validate parameter format
+  const num = parseInt(ctx.tag.parameter!, 10);
+  if (isNaN(num)) {
+    return '[Invalid number]';
+  }
+
+  // Enforce limits
+  if (num < 1 || num > 100) {
+    return '[Number must be between 1-100]';
+  }
+
+  // Process valid input
+  return ctx.tag.payload.repeat(num);
+}
+```
+
+### Performance Considerations
+
+```ts showLineNumbers
+// Good: Cache expensive operations
+export class DatabaseParser extends BaseParser implements IParser {
+  private cache = new Map<string, string>();
+
+  public async parse(ctx: Context): Promise<string> {
+    const key = ctx.tag.payload!;
+
+    // Check cache first
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
+
+    // Fetch from database
+    const value = await this.fetchFromDatabase(key);
+    this.cache.set(key, value);
+    
+    return value;
+  }
+}
+```
+
+### Security
+
+```ts showLineNumbers
+// Sanitize user input
+public parse(ctx: Context): string {
+  const input = ctx.tag.payload!;
+
+  // Prevent injection attacks
+  const sanitized = input
+    .replace(/[<>]/g, '') // Remove HTML tags
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .slice(0, 1000); // Limit length
+
+  return sanitized;
+}
+```
+
+## Testing Custom Parsers
+
+<Tabs items={['TypeScript', 'JavaScript']}>
+```ts tab="TypeScript" showLineNumbers
+import { describe, it, expect } from 'vitest';
+import { Interpreter } from 'tagscript';
+import { RepeatParser } from './RepeatParser';
+
+describe('RepeatParser', () => {
+  const ts = new Interpreter(new RepeatParser());
+
+  it('should repeat text correctly', async () => {
+    const result = await ts.run('{repeat(3): Hi}');
+    expect(result.body).toBe('HiHiHi');
+  });
+
+  it('should handle single repeat', async () => {
+    const result = await ts.run('{repeat(1): Test}');
+    expect(result.body).toBe('Test');
+  });
+
+  it('should handle zero repeats', async () => {
+    const result = await ts.run('{repeat(0): Test}');
+    expect(result.body).toBe('');
+  });
+
+  it('should reject invalid counts', async () => {
+    const result = await ts.run('{repeat(abc): Test}');
+    expect(result.body).toBe('[Invalid repeat count]');
+  });
+
+  it('should enforce maximum limit', async () => {
+    const result = await ts.run('{repeat(1000): Test}');
+    expect(result.body).toBe('[Invalid repeat count]');
+  });
+});
+```
+```js tab="JavaScript" showLineNumbers
+const { describe, it, expect } = require('vitest');
+const { Interpreter } = require('tagscript');
+const { RepeatParser } = require('./RepeatParser');
+
+describe('RepeatParser', () => {
+  const ts = new Interpreter(new RepeatParser());
+
+  it('should repeat text correctly', async () => {
+    const result = await ts.run('{repeat(3): Hi}');
+    expect(result.body).toBe('HiHiHi');
+  });
+
+  it('should handle single repeat', async () => {
+    const result = await ts.run('{repeat(1): Test}');
+    expect(result.body).toBe('Test');
+  });
+
+  it('should handle zero repeats', async () => {
+    const result = await ts.run('{repeat(0): Test}');
+    expect(result.body).toBe('');
+  });
+
+  it('should reject invalid counts', async () => {
+    const result = await ts.run('{repeat(abc): Test}');
+    expect(result.body).toBe('[Invalid repeat count]');
+  });
+
+  it('should enforce maximum limit', async () => {
+    const result = await ts.run('{repeat(1000): Test}');
+    expect(result.body).toBe('[Invalid repeat count]');
+  });
+});
+```
+</Tabs>
+
+## Next Steps
+
+- [Advanced Patterns](/examples/advanced-patterns)
+- [Plugin System Overview](/plugins/overview)
+- [Discord Plugin Guide](/plugins/discord)

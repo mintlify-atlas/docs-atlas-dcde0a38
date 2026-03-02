@@ -1,0 +1,248 @@
+---
+title: Tag Syntax
+description: Understanding TagScript's tag syntax and structure
+---
+
+# Tag Syntax
+
+TagScript uses a simple and intuitive syntax for defining tags. Each tag follows a consistent structure that makes it easy to learn and use.
+
+## Basic Structure
+
+A TagScript tag has the following anatomy:
+
+```yaml
+{declaration(parameters):payload}
+{declaration.parameters:payload}
+```
+
+Each component serves a specific purpose:
+
+- **Declaration**: The name of the tag (e.g., `random`, `if`, `user`)
+- **Parameters**: Optional modifiers or arguments for the tag
+- **Payload**: The content or data the tag operates on
+
+<Note>
+All three components are optional depending on the parser or transformer being used. The only required parts are the curly braces `{}`.
+</Note>
+
+## Parameter Syntax
+
+TagScript supports two different parameter syntaxes, controlled by the `ParenType` enum:
+
+### Parenthesis Syntax
+
+```yaml
+{declaration(parameter):payload}
+```
+
+**Example:**
+```yaml
+{if(x==y):true message|false message}
+```
+
+### Dot Syntax
+
+```yaml
+{declaration.parameter:payload}
+```
+
+**Example:**
+```yaml
+{user.name:default value}
+{count.++}
+```
+
+### Both (Default)
+
+By default, the interpreter accepts both syntaxes and will use whichever is provided:
+
+```typescript
+const ts = new Interpreter(...parsers);
+// Accepts both {tag(param):payload} and {tag.param:payload}
+```
+
+<Info>
+The parameter type can be configured when creating the interpreter using the `ParenType` enum:
+- `ParenType.Parenthesis` - Only `{tag(param):payload}`
+- `ParenType.Dot` - Only `{tag.param:payload}`
+- `ParenType.Both` - Accepts both formats (default)
+</Info>
+
+## Component Details
+
+### Declaration
+
+The declaration identifies which parser or transformer should handle the tag.
+
+```yaml
+{random:item1,item2,item3}
+#  ^^^^^^
+# declaration
+```
+
+Declarations are case-insensitive:
+
+```yaml
+{RANDOM:a,b,c}  # Same as {random:a,b,c}
+{Random:a,b,c}  # Same as {random:a,b,c}
+```
+
+### Parameters
+
+Parameters modify how the tag behaves or provide additional arguments.
+
+```yaml
+{if(x>5):greater|less or equal}
+#    ^^^
+# parameter (expression)
+```
+
+```yaml
+{count.++}
+#      ^^
+# parameter (increment operation)
+```
+
+### Payload
+
+The payload contains the main content the tag operates on. It's separated from the declaration/parameters by a colon `:`.
+
+```yaml
+{random:apple,banana,cherry}
+#       ^^^^^^^^^^^^^^^^^^^^
+#           payload
+```
+
+```yaml
+{if(score>=90):A|{if(score>=80):B|{if(score>=70):C|F}}}
+#              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#                          payload
+```
+
+<Note>
+Payloads can contain nested tags, allowing for complex logic and dynamic content generation.
+</Note>
+
+## Escaping
+
+To include literal curly braces or prevent tag parsing, use the backslash `\` escape character:
+
+```yaml
+\{not_a_tag}  # Outputs: {not_a_tag}
+{random:a,b,c\}d}  # The } in c}d won't close the tag early
+```
+
+## Common Patterns
+
+### Simple Tag (Transformer)
+
+```yaml
+{user}  # Just a declaration, used with transformers
+```
+
+### Tag with Parameter Only
+
+```yaml
+{count.++}  # Increment operation
+{count.--}  # Decrement operation
+```
+
+### Tag with Payload Only
+
+```yaml
+{random:red,green,blue}
+```
+
+### Tag with Parameter and Payload
+
+```yaml
+{if(x==5):correct|incorrect}
+{slice(0:5):Hello World}  # Returns: Hello
+```
+
+### Nested Tags
+
+```yaml
+{if({random:1,2,3}==2):You got 2!|You got something else}
+```
+
+```yaml
+Hello {user.name:{author.name:Unknown}}!
+# Falls back to author.name if user.name is not available
+# Falls back to "Unknown" if author.name is also not available
+```
+
+## Parser vs Transformer Tags
+
+### Parser Tags
+
+Parsers typically use the full syntax with declaration, parameters, and/or payload:
+
+```yaml
+{random:a,b,c}
+{if(x>5):yes|no}
+{range(1-10)}
+```
+
+### Transformer Tags
+
+Transformers usually only use the declaration and optional parameters:
+
+```yaml
+{user}
+{count.++}
+{score.--}
+```
+
+## Limits
+
+The interpreter has built-in safety limits:
+
+- **Tag Limit**: Maximum 2,000 tags per message (configurable)
+- **Character Limit**: Optional maximum characters to process (prevents infinite loops)
+
+```typescript
+await interpreter.run(
+  message,
+  seedVariables,
+  5000,  // Character limit
+  2000   // Tag limit
+);
+```
+
+## Real-World Examples
+
+### Random Greeting
+
+```yaml
+{random:Hello,Hi,Hey} {user}!
+# Possible outputs:
+# Hello John!
+# Hi John!
+# Hey John!
+```
+
+### Conditional Response
+
+```yaml
+{if({args}==63):You guessed it! The number was 63!|Too {if({args}<63):low|high}, try again.}
+```
+
+### Counter with Display
+
+```yaml
+You have visited {visits.++} time(s).
+# First visit: You have visited 1 time(s).
+# Second visit: You have visited 2 time(s).
+```
+
+### Nested Fallbacks
+
+```yaml
+Welcome, {user.nickname:{user.username:{user.id:Guest}}}!
+# Uses nickname if available
+# Falls back to username if no nickname
+# Falls back to ID if no username
+# Falls back to "Guest" if nothing is available
+```

@@ -1,0 +1,216 @@
+---
+title: IntegerTransformer
+description: Transform integer values with increment and decrement operations
+---
+
+# IntegerTransformer
+
+The `IntegerTransformer` transforms integer values based on tag parameters, supporting increment and decrement operations.
+
+## Overview
+
+IntegerTransformer enables you to:
+- Return the integer as a string
+- Increment the integer value using `++` parameter
+- Decrement the integer value using `--` parameter
+- Maintain state across multiple transformations
+
+## Constructor
+
+<ParamField path="int" type="`${bigint | number}`" required>
+  The integer value to transform, provided as a string, number, or bigint. The value is parsed using `parseInt(int, 10)`.
+</ParamField>
+
+```typescript
+import { IntegerTransformer } from 'tagscript';
+
+const counter = new IntegerTransformer('10');
+const score = new IntegerTransformer(42);
+```
+
+## Transform Method
+
+The `transform` method is called automatically by the interpreter when a variable using this transformer is encountered.
+
+```typescript
+transform(tag: Lexer): string
+```
+
+- **tag.parameter** - Operation to perform (`"++"` for increment, `"--"` for decrement, or `null` for no operation)
+- **Returns** - The integer value as a string
+
+## Usage Examples
+
+<Note>
+IntegerTransformer requires `StrictVarsParser` to function properly.
+</Note>
+
+### Basic Usage
+
+Return the integer value as a string:
+
+```typescript
+import { Interpreter, IntegerTransformer, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+await ts.run('{count}', { 
+  count: new IntegerTransformer('5') 
+});
+// Output: 5
+```
+
+### Increment Operation
+
+Use `++` to increment the value:
+
+```typescript
+const count = new IntegerTransformer('5');
+
+await ts.run('{count(++)}', { count });
+// Output: 6
+
+// The value persists - calling again continues incrementing
+await ts.run('{count(++)}', { count });
+// Output: 7
+```
+
+### Decrement Operation
+
+Use `--` to decrement the value:
+
+```typescript
+const count = new IntegerTransformer('10');
+
+await ts.run('{count(--)}', { count });
+// Output: 9
+
+// The value persists - calling again continues decrementing
+await ts.run('{count(--)}', { count });
+// Output: 8
+```
+
+### Stateful Behavior
+
+The transformer maintains its internal state across multiple uses:
+
+```typescript
+const counter = new IntegerTransformer('0');
+
+const template = `
+Initial: {counter}
+First increment: {counter(++)}
+Second increment: {counter(++)}
+Decrement: {counter(--)}
+Current value: {counter}
+`;
+
+await ts.run(template, { counter });
+// Output:
+// Initial: 0
+// First increment: 1
+// Second increment: 2
+// Decrement: 1
+// Current value: 1
+```
+
+### Practical Example: Counter System
+
+```typescript
+const visitor = new IntegerTransformer('100');
+
+const message = `
+Visitor #{visitor(++)} - Welcome!
+Total visitors: {visitor}
+`;
+
+await ts.run(message, { visitor });
+// Output:
+// Visitor #101 - Welcome!
+// Total visitors: 101
+```
+
+## Tag Syntax for End Users
+
+When using IntegerTransformer variables in templates:
+
+```yaml
+# Return current value
+{variable}
+
+# Increment and return new value
+{variable(++)}
+
+# Decrement and return new value
+{variable(--)}
+```
+
+## Behavior Details
+
+### State Management
+- **Persistent state** - The internal integer value is modified when using `++` or `--`
+- **Pre-increment/decrement** - The operation happens before returning the value
+- **Multiple calls** - Each call to `{var(++)}` continues incrementing from the current value
+- **Instance-specific** - Each transformer instance maintains its own independent state
+
+### Parsing
+- Uses `parseInt(int, 10)` for parsing
+- Supports string numbers, regular numbers, and bigints
+- Invalid values will result in `NaN` which becomes `"NaN"` when stringified
+
+### Examples with Different Operations
+
+```typescript
+const num = new IntegerTransformer('5');
+
+// Basic access doesn't modify state
+await ts.run('{num}', { num });    // "5"
+await ts.run('{num}', { num });    // "5" (unchanged)
+
+// Increment modifies state
+await ts.run('{num(++)}', { num }); // "6"
+await ts.run('{num}', { num });    // "6" (state changed)
+await ts.run('{num(++)}', { num }); // "7"
+
+// Decrement also modifies state
+await ts.run('{num(--)}', { num }); // "6"
+await ts.run('{num(--)}', { num }); // "5"
+```
+
+## Common Use Cases
+
+### Visit Counter
+
+```typescript
+const visits = new IntegerTransformer('0');
+await ts.run('Visit #{visits(++)}', { visits });
+```
+
+### Score System
+
+```typescript
+const score = new IntegerTransformer('100');
+await ts.run('Score: {score} (Bonus: {score(++)} {score(++)} {score(++)})', { score });
+// Output: Score: 100 (Bonus: 101 102 103)
+```
+
+### Countdown
+
+```typescript
+const countdown = new IntegerTransformer('3');
+const msg = '{countdown}... {countdown(--)}... {countdown(--)}... {countdown(--)}... Blast off!';
+await ts.run(msg, { countdown });
+// Output: 3... 2... 1... 0... Blast off!
+```
+
+## Implementation Reference
+
+The IntegerTransformer is implemented at:
+`~/workspace/source/packages/tagscript/src/lib/Transformer/Integer.ts:12`
+
+## Related
+
+- [StringTransformer](/transformers/string) - For string transformations
+- [SafeObjectTransformer](/transformers/object) - For object property access
+- [FunctionTransformer](/transformers/function) - For custom transformation logic
+- [StrictVarsParser](/parsers/strict-vars) - Required parser for transformers

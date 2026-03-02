@@ -1,0 +1,386 @@
+---
+title: Interpreter
+description: Understanding the Interpreter class and how it processes TagScript
+---
+
+# Interpreter
+
+The `Interpreter` class is the core of TagScript. It processes TagScript strings by parsing tags and executing the appropriate parsers to transform the input into the desired output.
+
+## Overview
+
+The Interpreter works by:
+
+1. Finding all tags in the input string
+2. Parsing each tag to extract its components (declaration, parameters, payload)
+3. Matching tags with registered parsers
+4. Executing parsers to transform tags into output
+5. Replacing tags with their processed results
+
+## Basic Usage
+
+### Creating an Interpreter
+
+```typescript
+import { Interpreter, RandomParser, IfStatementParser } from 'tagscript';
+
+const interpreter = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser()
+);
+```
+
+The constructor accepts any number of parser instances:
+
+```typescript
+public constructor(...parsers: IParser[])
+```
+
+### Running the Interpreter
+
+The main method for processing TagScript is the `run` method:
+
+```typescript
+const result = await interpreter.run(
+  '{random:Hello,Hi,Hey} World!'
+);
+
+console.log(result.body); // "Hello World!" or "Hi World!" or "Hey World!"
+```
+
+## The `run` Method
+
+The `run` method signature from `/home/daytona/workspace/source/packages/tagscript/src/lib/Interpreter/Interpreter.ts:80-92`:
+
+```typescript
+public async run(
+  message: string,
+  seedVariables: { [key: string]: ITransformer } = {},
+  charLimit: number | null = null,
+  tagLimit = 2_000,
+  parenType = ParenType.Both,
+  keyValues: IKeyValues = {}
+): Promise<Response>
+```
+
+### Parameters
+
+#### `message` (required)
+
+The TagScript string to process.
+
+```typescript
+const result = await interpreter.run('{random:red,green,blue}');
+```
+
+#### `seedVariables` (optional)
+
+An object containing transformers that provide context variables for processing.
+
+```typescript
+import { StringTransformer, IntegerTransformer } from 'tagscript';
+
+const result = await interpreter.run(
+  'Hello {user}, you have {score} points!',
+  {
+    user: new StringTransformer('Alice'),
+    score: new IntegerTransformer('100')
+  }
+);
+// Output: "Hello Alice, you have 100 points!"
+```
+
+#### `charLimit` (optional)
+
+Maximum characters to process. Prevents infinite loops or excessive processing.
+
+```typescript
+const result = await interpreter.run(
+  message,
+  {},
+  5000  // Limit to 5000 characters
+);
+```
+
+<Warning>
+If the character limit is exceeded, the interpreter will throw an error:
+```
+The TS interpreter had its workload exceeded. The total characters attempted were {current}/{limit}
+```
+</Warning>
+
+#### `tagLimit` (optional)
+
+Maximum number of tags to process per message. Default is 2,000.
+
+```typescript
+const result = await interpreter.run(
+  message,
+  {},
+  null,  // No char limit
+  1000   // Limit to 1000 tags
+);
+```
+
+#### `parenType` (optional)
+
+Controls which parameter syntax is accepted. Default is `ParenType.Both`.
+
+```typescript
+import { ParenType } from 'tagscript';
+
+// Accept both syntaxes
+const result1 = await interpreter.run(
+  '{user.name}',
+  vars,
+  null,
+  2000,
+  ParenType.Both
+);
+
+// Only accept dot syntax
+const result2 = await interpreter.run(
+  '{user.name}',
+  vars,
+  null,
+  2000,
+  ParenType.Dot
+);
+
+// Only accept parenthesis syntax
+const result3 = await interpreter.run(
+  '{user(name)}',
+  vars,
+  null,
+  2000,
+  ParenType.Parenthesis
+);
+```
+
+#### `keyValues` (optional)
+
+Additional key-value pairs that parsers can access during parsing. This is extensible via TypeScript module augmentation.
+
+```typescript
+const result = await interpreter.run(
+  message,
+  {},
+  null,
+  2000,
+  ParenType.Both,
+  { customData: 'value' }
+);
+```
+
+## Managing Parsers
+
+### Adding Parsers
+
+Add more parsers after initialization:
+
+```typescript
+const interpreter = new Interpreter(new RandomParser());
+
+// Add more parsers later
+interpreter.addParsers(
+  new IfStatementParser(),
+  new RangeParser()
+);
+```
+
+Method signature from `/home/daytona/workspace/source/packages/tagscript/src/lib/Interpreter/Interpreter.ts:56-58`:
+
+```typescript
+public addParsers(...parsers: IParser[]): void
+```
+
+### Replacing Parsers
+
+Replace all existing parsers with a new set:
+
+```typescript
+interpreter.setParsers(
+  new SliceParser(),
+  new ReplaceParser()
+);
+```
+
+Method signature from `/home/daytona/workspace/source/packages/tagscript/src/lib/Interpreter/Interpreter.ts:65-67`:
+
+```typescript
+public setParsers(...parsers: IParser[]): void
+```
+
+<Note>
+`setParsers` completely replaces the existing parser list, while `addParsers` appends to it.
+</Note>
+
+## Response Object
+
+The `run` method returns a `Response` object containing the processed result and metadata.
+
+```typescript
+const response = await interpreter.run(message, vars);
+
+console.log(response.body);       // Processed message
+console.log(response.raw);        // Original message
+console.log(response.variables);  // Variables used
+console.log(response.actions);    // Actions collected during parsing
+```
+
+See the [Response class documentation](/api/response) for more details.
+
+## How It Works Internally
+
+The interpreter follows this processing pipeline:
+
+### 1. Build Node Tree
+
+The `buildNodeTree` function (from `/home/daytona/workspace/source/packages/tagscript/src/lib/Interpreter/Interpreter.ts:17-38`) scans the message for all potential tags by finding matching `{` and `}` pairs:
+
+```typescript
+const nodes: Node[] = [];
+for (let index = 0; index < message.length; index++) {
+  const ch = message[index];
+  if (ch === '{' && previous !== '\\') starts.push(index);
+  if (ch === '}' && previous !== '\\') {
+    // Create node with coordinates
+  }
+}
+```
+
+### 2. Parse Each Tag
+
+For each node, create a `Lexer` to parse the tag components:
+
+```typescript
+node.tag = new Lexer(final.slice(start, end + 1), tagLimit, parenType);
+```
+
+The Lexer extracts the declaration, parameters, and payload.
+
+### 3. Find Accepting Parsers
+
+Find all parsers that accept the current tag:
+
+```typescript
+const acceptors = await this.getAcceptors(ctx);
+```
+
+Parsers are checked via their `willAccept` method.
+
+### 4. Execute Parser
+
+The first accepting parser processes the tag:
+
+```typescript
+for (const parser of acceptors) {
+  const value = await parser.parse(ctx);
+  if (value !== null) {
+    node.output = value;
+    return value;
+  }
+}
+```
+
+### 5. Replace Tag
+
+Replace the original tag with the processed output and adjust coordinates for remaining tags:
+
+```typescript
+const currentFinal = final.slice(0, start) + output + final.slice(end + 1);
+```
+
+<Info>
+The interpreter dynamically adjusts node coordinates as it processes tags, ensuring nested and sequential tags are handled correctly.
+</Info>
+
+## Error Handling
+
+If a parser throws an error, the interpreter catches it and returns the error message:
+
+```typescript
+try {
+  output = await this.processTags(ctx, node);
+} catch (error) {
+  return `${final.slice(0, start)} ${(error as Error).message}`;
+}
+```
+
+## Example Usage
+
+### Basic Example
+
+```typescript
+import { Interpreter, RandomParser } from 'tagscript';
+
+const ts = new Interpreter(new RandomParser());
+const result = await ts.run('{random:rock,paper,scissors}');
+console.log(result.body); // "rock" or "paper" or "scissors"
+```
+
+### With Variables
+
+```typescript
+import { Interpreter, StrictVarsParser, StringTransformer, IntegerTransformer } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+const result = await ts.run(
+  'User: {username}, Score: {score.++}',
+  {
+    username: new StringTransformer('Alice'),
+    score: new IntegerTransformer('99')
+  }
+);
+console.log(result.body); // "User: Alice, Score: 100"
+```
+
+### Complex Example
+
+```typescript
+import {
+  Interpreter,
+  RandomParser,
+  IfStatementParser,
+  RangeParser,
+  StringTransformer
+} from 'tagscript';
+
+const ts = new Interpreter(
+  new RandomParser(),
+  new IfStatementParser(),
+  new RangeParser()
+);
+
+const result = await ts.run(
+  '{random:Hello,Hi,Hey} {user}! {if({age}>18):You can vote|You cannot vote yet}',
+  {
+    user: new StringTransformer('Bob'),
+    age: new StringTransformer('25')
+  },
+  10000,  // 10k char limit
+  2000    // 2k tag limit
+);
+
+console.log(result.body);
+// Possible output: "Hi Bob! You can vote"
+```
+
+## Best Practices
+
+1. **Always use appropriate limits**: Set `charLimit` and `tagLimit` to prevent abuse
+2. **Handle errors**: Wrap `run` calls in try-catch blocks for production use
+3. **Reuse interpreter instances**: Create once, use multiple times
+4. **Add parsers in order**: Earlier parsers in the list get priority
+5. **Use async/await**: The `run` method is asynchronous
+
+```typescript
+// Good: Reuse instance
+const ts = new Interpreter(...parsers);
+const result1 = await ts.run(message1, vars);
+const result2 = await ts.run(message2, vars);
+
+// Bad: Creating new instance each time
+const result1 = await new Interpreter(...parsers).run(message1);
+const result2 = await new Interpreter(...parsers).run(message2);
+```

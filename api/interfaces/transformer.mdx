@@ -1,0 +1,456 @@
+---
+title: ITransformer
+description: Interface for creating custom TagScript transformers
+---
+
+The `ITransformer` interface defines the contract for creating transformers in TagScript. Transformers are used to transform variable values based on tag parameters at runtime.
+
+## Interface Definition
+
+```ts
+interface ITransformer {
+  transform: (tag: Lexer) => string | null;
+}
+```
+
+Transformers have a single `transform()` method that takes a parsed tag and returns the transformed value.
+
+## Method
+
+### transform()
+
+Transforms the value based on the tag's parameter and payload.
+
+```ts
+transform(tag: Lexer): string | null
+```
+
+<ParamField path="tag" type="Lexer" required>
+  The Lexer instance containing the parsed tag with:
+  - `declaration` - The variable name being accessed
+  - `parameter` - Optional parameter for transformation
+  - `payload` - Optional payload for additional context
+</ParamField>
+
+<ResponseField name="return" type="string | null">
+  The transformed string value, or `null` if the transformation cannot be performed.
+</ResponseField>
+
+## Built-in Transformers
+
+TagScript provides several built-in transformer implementations:
+
+### StringTransformer
+
+Transforms strings with indexing and slicing capabilities.
+
+```ts
+import { StringTransformer } from 'tagscript';
+
+const transformer = new StringTransformer('Hello World');
+
+// No parameter: returns the full string
+transformer.transform(new Lexer('{text}')); 
+// "Hello World"
+
+// Index parameter: returns word at index (1-based)
+transformer.transform(new Lexer('{text(1)}')); 
+// "Hello"
+
+// Range parameter: returns from index onward
+transformer.transform(new Lexer('{text(2+)}')); 
+// "World"
+
+// Range parameter: returns up to and including index
+transformer.transform(new Lexer('{text(+1)}')); 
+// "Hello"
+```
+
+### IntegerTransformer
+
+Transforms integers with mathematical operations.
+
+```ts
+import { IntegerTransformer } from 'tagscript';
+
+const transformer = new IntegerTransformer(10);
+
+// No parameter: returns the number
+transformer.transform(new Lexer('{count}')); 
+// "10"
+
+// With operation parameter
+transformer.transform(new Lexer('{count(+5)}')); 
+// "15"
+
+transformer.transform(new Lexer('{count(*2)}')); 
+// "20"
+```
+
+### ObjectTransformer
+
+Transforms objects by accessing properties.
+
+```ts
+import { ObjectTransformer } from 'tagscript';
+
+const transformer = new ObjectTransformer({
+  name: 'Alice',
+  age: 25,
+  city: 'New York'
+});
+
+// Access property
+transformer.transform(new Lexer('{user.name}')); 
+// "Alice"
+
+transformer.transform(new Lexer('{user(age)}')); 
+// "25"
+```
+
+### FunctionTransformer
+
+Transforms values using a custom function.
+
+```ts
+import { FunctionTransformer } from 'tagscript';
+
+const transformer = new FunctionTransformer(
+  (tag) => {
+    const param = tag.parameter || 'default';
+    return `Processed: ${param}`;
+  }
+);
+
+transformer.transform(new Lexer('{func(test)}')); 
+// "Processed: test"
+```
+
+## Creating Custom Transformers
+
+### Basic Implementation
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+
+class UpperCaseTransformer implements ITransformer {
+  constructor(private value: string) {}
+  
+  transform(tag: Lexer): string | null {
+    // Return uppercase version
+    return this.value.toUpperCase();
+  }
+}
+
+// Usage
+import { Interpreter, StrictVarsParser } from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Message: {text}',
+  { text: new UpperCaseTransformer('hello') }
+);
+
+console.log(result.body); // "Message: HELLO"
+```
+
+### With Parameters
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+
+class PadTransformer implements ITransformer {
+  constructor(private value: string) {}
+  
+  transform(tag: Lexer): string | null {
+    if (!tag.parameter) {
+      return this.value;
+    }
+    
+    const width = parseInt(tag.parameter);
+    if (isNaN(width)) {
+      return this.value;
+    }
+    
+    return this.value.padStart(width, '0');
+  }
+}
+
+// Usage
+const result = await ts.run(
+  'ID: {id(8)}',
+  { id: new PadTransformer('123') }
+);
+
+console.log(result.body); // "ID: 00000123"
+```
+
+### With Payload
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+
+class JoinTransformer implements ITransformer {
+  constructor(private items: string[]) {}
+  
+  transform(tag: Lexer): string | null {
+    const separator = tag.payload || ', ';
+    return this.items.join(separator);
+  }
+}
+
+// Usage
+const result = await ts.run(
+  'Items: {list: | }',
+  { list: new JoinTransformer(['apple', 'banana', 'orange']) }
+);
+
+console.log(result.body); // "Items: apple | banana | orange"
+```
+
+### Array Access
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+
+class ArrayTransformer implements ITransformer {
+  constructor(private items: string[]) {}
+  
+  transform(tag: Lexer): string | null {
+    // No parameter: return all items
+    if (!tag.parameter) {
+      return this.items.join(', ');
+    }
+    
+    // Numeric parameter: return item at index (1-based)
+    const index = parseInt(tag.parameter) - 1;
+    
+    if (isNaN(index) || index < 0 || index >= this.items.length) {
+      return null;
+    }
+    
+    return this.items[index];
+  }
+}
+
+// Usage
+const result = await ts.run(
+  'First: {items(1)}, Second: {items(2)}',
+  { items: new ArrayTransformer(['A', 'B', 'C']) }
+);
+
+console.log(result.body); // "First: A, Second: B"
+```
+
+### Complex Object Access
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+
+interface User {
+  name: string;
+  email: string;
+  settings: {
+    theme: string;
+    language: string;
+  };
+}
+
+class UserTransformer implements ITransformer {
+  constructor(private user: User) {}
+  
+  transform(tag: Lexer): string | null {
+    if (!tag.parameter) {
+      return JSON.stringify(this.user);
+    }
+    
+    // Support nested property access: "settings.theme"
+    const parts = tag.parameter.split('.');
+    let value: any = this.user;
+    
+    for (const part of parts) {
+      if (value && typeof value === 'object' && part in value) {
+        value = value[part];
+      } else {
+        return null;
+      }
+    }
+    
+    return String(value);
+  }
+}
+
+// Usage
+const user = {
+  name: 'Alice',
+  email: 'alice@example.com',
+  settings: {
+    theme: 'dark',
+    language: 'en'
+  }
+};
+
+const result = await ts.run(
+  'Theme: {user.settings.theme}',
+  { user: new UserTransformer(user) }
+);
+
+console.log(result.body); // "Theme: dark"
+```
+
+### Conditional Transformation
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+
+class ConditionalTransformer implements ITransformer {
+  constructor(
+    private value: boolean,
+    private trueText: string,
+    private falseText: string
+  ) {}
+  
+  transform(tag: Lexer): string | null {
+    return this.value ? this.trueText : this.falseText;
+  }
+}
+
+// Usage
+const isAdmin = true;
+
+const result = await ts.run(
+  'Access: {admin}',
+  { admin: new ConditionalTransformer(isAdmin, 'Granted', 'Denied') }
+);
+
+console.log(result.body); // "Access: Granted"
+```
+
+### With Escaping
+
+```ts
+import { ITransformer, Lexer } from 'tagscript';
+import { escapeContent } from 'tagscript';
+
+class SafeTransformer implements ITransformer {
+  constructor(
+    private value: string,
+    private shouldEscape: boolean = true
+  ) {}
+  
+  transform(tag: Lexer): string | null {
+    if (this.shouldEscape) {
+      return escapeContent(this.value);
+    }
+    return this.value;
+  }
+}
+
+// Usage
+const userInput = '<script>alert("xss")</script>';
+
+const result = await ts.run(
+  'Input: {input}',
+  { input: new SafeTransformer(userInput, true) }
+);
+
+console.log(result.body); 
+// "Input: \\<script\\>alert(\"xss\")\\</script\\>"
+```
+
+## Using with StrictVarsParser
+
+Transformers are typically used with `StrictVarsParser` or `LooseVarsParser`:
+
+```ts
+import { 
+  Interpreter, 
+  StrictVarsParser, 
+  StringTransformer,
+  IntegerTransformer,
+  ObjectTransformer
+} from 'tagscript';
+
+const ts = new Interpreter(new StrictVarsParser());
+
+const result = await ts.run(
+  'Hello {user.name}, you have {points} points!',
+  {
+    user: new ObjectTransformer({ name: 'Bob', id: '123' }),
+    points: new IntegerTransformer(150)
+  }
+);
+
+console.log(result.body); 
+// "Hello Bob, you have 150 points!"
+```
+
+## Best Practices
+
+1. **Handle null cases** - Return `null` when transformation isn't possible
+
+2. **Validate parameters** - Check if parameters are in expected format before using them
+
+3. **Use payload wisely** - The payload can provide additional context for transformation
+
+4. **Type safety** - Use TypeScript to ensure type safety for your transformer's value
+
+5. **Immutability** - Don't modify the original value, return a new transformed value
+
+6. **Performance** - Keep transformations fast since they're called during tag processing
+
+7. **Documentation** - Document what parameters and payloads your transformer accepts
+
+## Complete Example
+
+```ts
+import { ITransformer, Lexer, Interpreter, StrictVarsParser } from 'tagscript';
+
+class DateTransformer implements ITransformer {
+  constructor(private date: Date) {}
+  
+  transform(tag: Lexer): string | null {
+    const format = tag.parameter || 'full';
+    
+    switch (format.toLowerCase()) {
+      case 'full':
+        return this.date.toLocaleString();
+      case 'date':
+        return this.date.toLocaleDateString();
+      case 'time':
+        return this.date.toLocaleTimeString();
+      case 'iso':
+        return this.date.toISOString();
+      case 'timestamp':
+        return String(this.date.getTime());
+      default:
+        return this.date.toString();
+    }
+  }
+}
+
+// Usage
+const ts = new Interpreter(new StrictVarsParser());
+
+const now = new Date();
+
+const result = await ts.run(
+  `
+  Full: {now(full)}
+  Date: {now(date)}
+  Time: {now(time)}
+  ISO: {now(iso)}
+  `,
+  { now: new DateTransformer(now) }
+);
+
+console.log(result.body);
+```
+
+## See Also
+
+- [Lexer](/api/lexer) - Passed to the transform method
+- [IParser](/api/interfaces/parser) - Parser interface for creating custom parsers
+- [StringTransformer](https://github.com/imnaiyar/tagscript/blob/main/packages/tagscript/src/lib/Transformer/String.ts) - Built-in string transformer
+- [ObjectTransformer](https://github.com/imnaiyar/tagscript/blob/main/packages/tagscript/src/lib/Transformer/Object.ts) - Built-in object transformer
