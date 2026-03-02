@@ -1,0 +1,140 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "TagScript",
+  "projectDescription": "A simple and safe template engine for JavaScript and TypeScript.",
+  "theme": "mint",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#2563EB",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core/tag-syntax",
+              "core/interpreter",
+              "core/parsers",
+              "core/transformers"
+            ]
+          },
+          {
+            "group": "Parsers",
+            "pages": [
+              "parsers/overview",
+              "parsers/control",
+              "parsers/fifty-fifty",
+              "parsers/if-statement",
+              "parsers/random",
+              "parsers/range",
+              "parsers/slice",
+              "parsers/replace",
+              "parsers/format",
+              "parsers/url-encoded",
+              "parsers/json-var",
+              "parsers/loose-vars",
+              "parsers/strict-vars",
+              "parsers/break",
+              "parsers/stop",
+              "parsers/includes",
+              "parsers/define"
+            ]
+          },
+          {
+            "group": "Transformers",
+            "pages": [
+              "transformers/overview",
+              "transformers/string",
+              "transformers/integer",
+              "transformers/object",
+              "transformers/function"
+            ]
+          },
+          {
+            "group": "Plugins",
+            "pages": [
+              "plugins/overview",
+              "plugins/discord"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-usage",
+              "examples/custom-parsers",
+              "examples/advanced-patterns"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/interpreter",
+              "api/context",
+              "api/lexer",
+              "api/response"
+            ]
+          },
+          {
+            "group": "Interfaces",
+            "pages": [
+              "api/interfaces/parser",
+              "api/interfaces/transformer"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Simple and safe template engine with curly brace syntax",
+    "16+ built-in parsers for control flow, randomization, and text manipulation",
+    "Transformer system for dynamic value processing",
+    "Plugin architecture with Discord.js integration",
+    "Full TypeScript support with CJS, ESM, and UMD builds",
+    "Async-first design for non-blocking template processing"
+  ],
+  "publicApiSurface": [
+    "Interpreter",
+    "Context",
+    "Lexer",
+    "Response",
+    "StringTransformer",
+    "IntegerTransformer",
+    "ObjectTransformer",
+    "FunctionTransformer",
+    "ControlParser",
+    "FiftyFiftyParser",
+    "IfStatementParser",
+    "RandomParser",
+    "RangeParser",
+    "SliceParser",
+    "ReplaceParser",
+    "FormatParser",
+    "UrlEncodedParser",
+    "JSONVarParser",
+    "LooseVarsParser",
+    "StrictVarsParser",
+    "BreakParser",
+    "StopParser",
+    "IncludesParser",
+    "DefineParser",
+    "BaseParser",
+    "IParser",
+    "ITransformer"
+  ]
+}
